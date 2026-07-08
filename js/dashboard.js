@@ -290,9 +290,14 @@ async function handleSendMoney(e) {
   }
   
   // Lookup receiver by phone or UPI ID
-  let query = supabaseClient.from('profiles').select('id, wallet_balance');
+  let query = supabaseClient.from('profiles').select('id, wallet_balance, upi_id, phone');
   if (recipientMobile.includes('@')) {
-    query = query.eq('upi_id', recipientMobile);
+    if (recipientMobile.endsWith('@paymoney')) {
+      const phoneNum = recipientMobile.split('@')[0];
+      query = query.or(`upi_id.eq.${recipientMobile},phone.eq.${phoneNum}`);
+    } else {
+      query = query.eq('upi_id', recipientMobile);
+    }
   } else {
     query = query.eq('phone', recipientMobile);
   }

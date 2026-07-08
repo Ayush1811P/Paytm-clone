@@ -245,10 +245,619 @@ function initModals() {
   });
 }
 
+// Load a script dynamically
+function loadScript(url) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${url}"]`)) {
+      resolve();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = url;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+// Inject QR Modal HTML dynamically
+function injectQrModal() {
+  if (document.getElementById('qrModal')) return;
+  
+  const modalHtml = `
+    <div id="qrModal" class="modal" style="display: none;">
+      <div class="modal-content" style="max-width: 400px; text-align: center;">
+        <span class="close-modal" id="closeQrModal" style="float: right; cursor: pointer; font-size: 24px; font-weight: bold;">&times;</span>
+        <h2 style="margin-bottom: var(--spacing-sm); font-size: 1.5rem; font-weight: 700; color: var(--secondary-color);">Your PayMoney QR</h2>
+        <p style="color: var(--text-medium); margin-bottom: var(--spacing-md); font-size: 0.9rem;">Scan to pay instantly</p>
+        
+        <div style="background: white; padding: var(--spacing-md); border-radius: var(--border-radius-lg); display: inline-block; box-shadow: var(--shadow-sm); margin-bottom: var(--spacing-md); border: 1px solid var(--border-color);">
+          <canvas id="qrCanvas" style="display: block; width: 220px; height: 220px;"></canvas>
+        </div>
+        
+        <div id="qrDetails" style="margin-bottom: var(--spacing-lg);">
+          <h3 id="qrUserName" style="margin: 0; font-size: 1.1rem; color: var(--text-dark); font-weight: 500;">Loading...</h3>
+          <p id="qrUserUpi" style="margin: 4px 0 0 0; font-size: 0.9rem; color: var(--text-medium); font-family: monospace; letter-spacing: 0.5px;">Loading...</p>
+        </div>
+        
+        <button id="downloadQrBtn" class="btn btn-primary" style="width: 100%;">Download QR Code</button>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  
+  // Wire up close button specifically for this modal since it's dynamically added
+  const closeBtn = document.getElementById('closeQrModal');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      document.getElementById('qrModal').style.display = 'none';
+    });
+  }
+}
+
+// Initialize Show QR and Scan QR menu links
+function initQrMenuOptions() {
+  // Add options to nav-tabs (Desktop)
+  const navTabs = document.querySelector('.nav-tabs');
+  if (navTabs) {
+    if (!document.getElementById('showQrBtn')) {
+      const qrLi = document.createElement('li');
+      qrLi.innerHTML = '<a href="#" id="showQrBtn">Show QR</a>';
+      navTabs.appendChild(qrLi);
+      document.getElementById('showQrBtn').addEventListener('click', handleShowQr);
+    }
+    
+    if (!document.getElementById('scanQrBtn')) {
+      const scanQrLi = document.createElement('li');
+      scanQrLi.innerHTML = '<a href="#" id="scanQrBtn">Scan QR</a>';
+      navTabs.appendChild(scanQrLi);
+      document.getElementById('scanQrBtn').addEventListener('click', handleScanQr);
+    }
+  }
+  
+  // Add options to mobile-menu
+  const mobileMenuUl = document.querySelector('.mobile-menu ul');
+  if (mobileMenuUl) {
+    if (!document.getElementById('mobileShowQrBtn')) {
+      const qrMobileLi = document.createElement('li');
+      qrMobileLi.innerHTML = '<a href="#" id="mobileShowQrBtn">Show QR</a>';
+      
+      const logoutLi = document.getElementById('mobileLogout')?.parentElement;
+      if (logoutLi) {
+        mobileMenuUl.insertBefore(qrMobileLi, logoutLi);
+      } else {
+        mobileMenuUl.appendChild(qrMobileLi);
+      }
+      document.getElementById('mobileShowQrBtn').addEventListener('click', handleShowQr);
+    }
+    
+    if (!document.getElementById('mobileScanQrBtn')) {
+      const scanQrMobileLi = document.createElement('li');
+      scanQrMobileLi.innerHTML = '<a href="#" id="mobileScanQrBtn">Scan QR</a>';
+      
+      const logoutLi = document.getElementById('mobileLogout')?.parentElement;
+      if (logoutLi) {
+        mobileMenuUl.insertBefore(scanQrMobileLi, logoutLi);
+      } else {
+        mobileMenuUl.appendChild(scanQrMobileLi);
+      }
+      document.getElementById('mobileScanQrBtn').addEventListener('click', handleScanQr);
+    }
+  }
+}
+
+// Open Scan QR Modal and start camera
+async function handleScanQr(e) {
+  e.preventDefault();
+  
+  // Close mobile menu if active
+  const mobileMenu = document.querySelector('.mobile-menu');
+  if (mobileMenu && mobileMenu.classList.contains('active')) {
+    mobileMenu.classList.remove('active');
+    const hamburger = document.querySelector('.hamburger-menu');
+    if (hamburger) {
+      const bars = hamburger.querySelectorAll('.bar');
+      if (bars.length === 3) {
+        bars[0].style.transform = '';
+        bars[1].style.opacity = '1';
+        bars[2].style.transform = '';
+      }
+    }
+  }
+  
+  injectScanQrModals();
+  const scanQrModal = document.getElementById('scanQrModal');
+  if (!scanQrModal) return;
+  
+  const scannerInterface = document.getElementById('scannerInterface');
+  const scanQrResultCard = document.getElementById('scanQrResultCard');
+  const loadingBarContainer = document.getElementById('scanLoadingBarContainer');
+  const galleryPayBtn = document.getElementById('galleryPayBtn');
+  const fileNameDisplay = document.getElementById('qrFileName');
+  const fileInput = document.getElementById('qrFileInput');
+  
+  if (scannerInterface) scannerInterface.style.display = 'block';
+  if (scanQrResultCard) scanQrResultCard.style.display = 'none';
+  if (loadingBarContainer) loadingBarContainer.style.display = 'none';
+  if (galleryPayBtn) galleryPayBtn.style.display = 'none';
+  if (fileNameDisplay) fileNameDisplay.style.display = 'none';
+  if (fileInput) fileInput.value = '';
+  
+  scanQrModal.style.display = 'block';
+  
+  try {
+    // Load html5-qrcode library
+    await loadScript('https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js');
+    
+    // Wire up file upload handler
+    setupFileInputListener();
+    
+    // Start camera feed
+    await startCameraScanner();
+  } catch (error) {
+    console.error('Error starting scanner:', error);
+  }
+}
+
+function setupFileInputListener() {
+  const fileInput = document.getElementById('qrFileInput');
+  const fileNameDisplay = document.getElementById('qrFileName');
+  const galleryPayBtn = document.getElementById('galleryPayBtn');
+  
+  if (fileInput && !fileInput.dataset.listenerAttached) {
+    fileInput.dataset.listenerAttached = 'true';
+    
+    // File input change handler (Only shows file name and PAY button)
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length === 0) {
+        if (fileNameDisplay) fileNameDisplay.style.display = 'none';
+        if (galleryPayBtn) galleryPayBtn.style.display = 'none';
+        return;
+      }
+      
+      const imageFile = e.target.files[0];
+      if (fileNameDisplay) {
+        fileNameDisplay.textContent = `Selected: ${imageFile.name}`;
+        fileNameDisplay.style.display = 'block';
+      }
+      if (galleryPayBtn) {
+        galleryPayBtn.style.display = 'block';
+      }
+    });
+    
+    // PAY button click handler (Performs scan animation and decoding)
+    if (galleryPayBtn) {
+      galleryPayBtn.addEventListener('click', async () => {
+        if (fileInput.files.length === 0) return;
+        const imageFile = fileInput.files[0];
+        
+        // Stop active camera
+        await stopCameraScanner();
+        
+        const scannerInterface = document.getElementById('scannerInterface');
+        const loadingBarContainer = document.getElementById('scanLoadingBarContainer');
+        const progressBar = document.getElementById('scanLoadingProgress');
+        
+        if (scannerInterface) scannerInterface.style.display = 'none';
+        if (loadingBarContainer) loadingBarContainer.style.display = 'block';
+        if (progressBar) progressBar.style.width = '0%';
+        
+        try {
+          // Load jsQR dynamically
+          await loadScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js');
+          
+          // Animate progress bar over 1000ms
+          let progress = 0;
+          const interval = setInterval(() => {
+            progress += 10;
+            if (progressBar) progressBar.style.width = `${progress}%`;
+            
+            if (progress >= 100) {
+              clearInterval(interval);
+              
+              // Read and decode the image file
+              const reader = new FileReader();
+              reader.onload = function(event) {
+                const img = new Image();
+                img.onload = async function() {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  const ctx = canvas.getContext('2d');
+                  ctx.drawImage(img, 0, 0);
+                  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                  
+                  const code = jsQR(imageData.data, imageData.width, imageData.height);
+                  if (code) {
+                    if (loadingBarContainer) loadingBarContainer.style.display = 'none';
+                    await onQrScanSuccess(code.data);
+                  } else {
+                    showNotification("Could not find a valid QR code in the image. Please select a clear QR code.", "error");
+                    // Reset to initial scan view
+                    if (loadingBarContainer) loadingBarContainer.style.display = 'none';
+                    if (scannerInterface) scannerInterface.style.display = 'block';
+                    if (galleryPayBtn) galleryPayBtn.style.display = 'none';
+                    if (fileNameDisplay) fileNameDisplay.style.display = 'none';
+                    fileInput.value = '';
+                  }
+                };
+                img.src = event.target.result;
+              };
+              reader.readAsDataURL(imageFile);
+            }
+          }, 100);
+          
+        } catch (err) {
+          console.error("QR Scan from file failed:", err);
+          showNotification("Failed to scan file.", "error");
+          if (loadingBarContainer) loadingBarContainer.style.display = 'none';
+          if (scannerInterface) scannerInterface.style.display = 'block';
+        }
+      });
+    }
+  }
+}
+
+async function startCameraScanner() {
+  try {
+    if (!html5Qrcode) {
+      html5Qrcode = new Html5Qrcode("qrReader");
+    }
+    
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    
+    await html5Qrcode.start(
+      { facingMode: "environment" },
+      config,
+      async (decodedText) => {
+        await onQrScanSuccess(decodedText);
+      },
+      (errorMessage) => {
+        // Silent
+      }
+    );
+  } catch (err) {
+    console.error("Camera access failed", err);
+    showNotification("Camera access denied or unavailable. Please upload a QR code image below.", "error");
+  }
+}
+
+async function stopCameraScanner() {
+  if (html5Qrcode) {
+    try {
+      if (html5Qrcode.isScanning) {
+        await html5Qrcode.stop();
+      }
+    } catch (err) {
+      console.error("Error stopping camera", err);
+    }
+    html5Qrcode = null;
+  }
+}
+
+let scannedReceiver = null;
+
+async function onQrScanSuccess(decodedText) {
+  // Stop scanner
+  await stopCameraScanner();
+  
+  // Parse QR contents (Case-insensitive check)
+  let upiId = '';
+  const cleanText = decodedText.trim();
+  
+  // Try matching pa=... parameter in a case-insensitive way
+  const paMatch = cleanText.match(/pa=([^&]+)/i);
+  if (paMatch) {
+    upiId = paMatch[1];
+  } else if (cleanText.includes('@')) {
+    // Treat the whole text as raw UPI ID fallback if it contains @
+    upiId = cleanText;
+  } else {
+    upiId = cleanText;
+  }
+  
+  if (!upiId) {
+    showNotification('Invalid QR code format', 'error');
+    return;
+  }
+  upiId = decodeURIComponent(upiId).trim();
+  
+  // Lookup recipient details
+  showNotification('Fetching recipient details...');
+  let query = supabaseClient.from('profiles').select('id, full_name, upi_id, phone, wallet_balance');
+  if (upiId.includes('@')) {
+    if (upiId.endsWith('@paymoney')) {
+      const phoneNum = upiId.split('@')[0];
+      query = query.or(`upi_id.eq.${upiId},phone.eq.${phoneNum}`);
+    } else {
+      query = query.eq('upi_id', upiId);
+    }
+  } else {
+    query = query.eq('phone', upiId);
+  }
+  
+  const { data: receiverData, error: receiverError } = await query.maybeSingle();
+  
+  if (receiverError || !receiverData) {
+    showNotification('PayMoney user/account not found for this QR', 'error');
+    return;
+  }
+  
+  const user = await getUser();
+  if (receiverData.id === user.id) {
+    showNotification('Cannot send money to yourself', 'error');
+    return;
+  }
+  
+  // Save recipient details
+  window.scannedReceiver = receiverData;
+  
+  // Populate confirmation card
+  const upiAddress = receiverData.upi_id || `${receiverData.phone}@paymoney`;
+  document.getElementById('resolvedReceiverName').textContent = receiverData.full_name;
+  document.getElementById('resolvedReceiverUpi').textContent = upiAddress;
+  document.getElementById('resolvedReceiverAvatar').textContent = (receiverData.full_name || 'U').charAt(0).toUpperCase();
+  
+  // Switch modal view
+  document.getElementById('scannerInterface').style.display = 'none';
+  document.getElementById('scanQrResultCard').style.display = 'block';
+}
+
+// Inject Scan QR Modals HTML dynamically
+function injectScanQrModals() {
+  if (document.getElementById('scanQrModal')) return;
+  
+  const scanModalHtml = `
+    <div id="scanQrModal" class="modal" style="display: none;">
+      <style>
+        @keyframes scanLaser {
+          0% { top: 0%; }
+          50% { top: 100%; }
+          100% { top: 0%; }
+        }
+        .scanner-viewfinder {
+          position: relative; 
+          margin-bottom: var(--spacing-md); 
+          background: linear-gradient(135deg, var(--secondary-dark), #003a80); 
+          border-radius: var(--border-radius-lg); 
+          overflow: hidden; 
+          min-height: 250px; 
+          border: 2px solid var(--primary-color); 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          box-shadow: var(--shadow-md);
+        }
+        .scanner-overlay {
+          position: absolute; 
+          top: 0; 
+          left: 0; 
+          width: 100%; 
+          height: 100%; 
+          pointer-events: none; 
+          display: flex; 
+          flex-direction: column; 
+          align-items: center; 
+          justify-content: center; 
+          z-index: 2;
+        }
+        .scanner-target-box {
+          width: 170px; 
+          height: 170px; 
+          border: 2px dashed rgba(0, 186, 242, 0.6); 
+          border-radius: var(--border-radius-md); 
+          position: relative;
+          background-color: rgba(0, 41, 112, 0.2);
+        }
+        .scanner-laser-line {
+          position: absolute; 
+          top: 0; 
+          left: 0; 
+          width: 100%; 
+          height: 3px; 
+          background-color: var(--primary-color); 
+          box-shadow: 0 0 10px var(--primary-color); 
+          animation: scanLaser 2s linear infinite;
+        }
+      </style>
+      
+      <div class="modal-content" style="max-width: 450px; text-align: center;">
+        <span class="close-modal" id="closeScanQrModal" style="float: right; cursor: pointer; font-size: 24px; font-weight: bold;">&times;</span>
+        
+        <!-- Scanner interface -->
+        <div id="scannerInterface">
+          <h2 style="color: var(--secondary-color); margin-bottom: var(--spacing-sm); font-size: 1.5rem; font-weight: 700;">Scan QR Code</h2>
+          <p style="color: var(--text-medium); margin-bottom: var(--spacing-md); font-size: 0.9rem;">Scan a PayMoney QR to send money instantly</p>
+          
+          <!-- Styled Viewfinder -->
+          <div class="scanner-viewfinder">
+            <div id="qrReader" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1;"></div>
+            <div class="scanner-overlay">
+              <div class="scanner-target-box">
+                <div class="scanner-laser-line"></div>
+              </div>
+              <p style="color: white; font-size: 0.85rem; margin-top: var(--spacing-md); font-weight: 500; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Align QR code within the frame</p>
+            </div>
+          </div>
+          
+          <div style="margin: var(--spacing-md) 0; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-light); font-size: 0.9rem;">
+            <span style="height: 1px; background: var(--border-color); flex: 1;"></span>
+            <span>OR</span>
+            <span style="height: 1px; background: var(--border-color); flex: 1;"></span>
+          </div>
+          
+          <!-- Styled Gallery Upload -->
+          <div class="form-group" style="text-align: left; margin-bottom: 0;">
+            <label style="display: block; font-weight: 500; margin-bottom: 8px; font-size: 0.95rem; color: var(--text-dark);">Upload from Gallery</label>
+            <div style="display: flex; flex-direction: column; gap: var(--spacing-sm);">
+              <label for="qrFileInput" class="btn btn-outline" style="cursor: pointer; border: 1px dashed var(--primary-color); background-color: var(--primary-light); color: var(--primary-dark); padding: 10px 16px; border-radius: var(--border-radius-md); font-weight: 500; display: inline-flex; align-items: center; gap: 8px; margin: 0; justify-content: center; width: 100%; transition: all var(--transition-fast);">
+                <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+                Choose QR Image
+              </label>
+              <input type="file" id="qrFileInput" accept="image/*" style="display: none;">
+              <p id="qrFileName" style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-medium); font-style: italic; display: none; text-align: center; word-break: break-all;"></p>
+            </div>
+            
+            <button id="galleryPayBtn" class="btn btn-primary" style="width: 100%; margin-top: var(--spacing-md); display: none;">PAY</button>
+          </div>
+        </div>
+        
+        <!-- Loading bar -->
+        <div id="scanLoadingBarContainer" style="display: none; padding: var(--spacing-lg) 0;">
+          <p style="color: var(--secondary-color); font-weight: 600; margin-bottom: 12px; font-size: 1.05rem;" id="scanLoadingText">Scanning QR code, please wait...</p>
+          <div style="width: 100%; height: 8px; background-color: var(--bg-grey); border-radius: 4px; overflow: hidden; position: relative; border: 1px solid var(--border-color);">
+            <div id="scanLoadingProgress" style="width: 0%; height: 100%; background-color: var(--primary-color); transition: width 0.1s linear; border-radius: 4px;"></div>
+          </div>
+        </div>
+        
+        <!-- Result card -->
+        <div id="scanQrResultCard" style="display: none; padding: var(--spacing-md);">
+          <h2 style="color: var(--secondary-color); margin-bottom: var(--spacing-md); font-size: 1.5rem; font-weight: 700;">Pay Recipient</h2>
+          <div style="background: var(--bg-grey); padding: var(--spacing-lg); border-radius: var(--border-radius-lg); margin-bottom: var(--spacing-lg); border: 1px solid var(--border-color); display: flex; flex-direction: column; align-items: center;">
+            <div style="width: 60px; height: 60px; background-color: var(--secondary-light); color: var(--secondary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.5rem; margin-bottom: var(--spacing-sm);" id="resolvedReceiverAvatar">R</div>
+            <h3 id="resolvedReceiverName" style="margin: 0; font-size: 1.15rem; font-weight: 600; color: var(--text-dark);">Receiver Name</h3>
+            <p id="resolvedReceiverUpi" style="margin: 4px 0 0 0; font-size: 0.9rem; color: var(--text-medium); font-family: monospace; letter-spacing: 0.5px;">receiver@paymoney</p>
+          </div>
+          <button id="proceedToPayBtn" class="btn btn-primary" style="width: 100%;">PAY</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', scanModalHtml);
+  
+  // Wire up close button specifically for Scan Modal
+  const closeScanBtn = document.getElementById('closeScanQrModal');
+  if (closeScanBtn) {
+    closeScanBtn.addEventListener('click', async () => {
+      document.getElementById('scanQrModal').style.display = 'none';
+      await stopCameraScanner();
+    });
+  }
+  
+  // Close scanner if user clicks outside of scan modal
+  window.addEventListener('click', async (event) => {
+    const scanQrModal = document.getElementById('scanQrModal');
+    if (event.target === scanQrModal) {
+      scanQrModal.style.display = 'none';
+      await stopCameraScanner();
+    }
+  });
+  
+  // Wire up proceed to pay button
+  const proceedToPayBtn = document.getElementById('proceedToPayBtn');
+  if (proceedToPayBtn) {
+    proceedToPayBtn.addEventListener('click', () => {
+      const receiver = window.scannedReceiver;
+      if (!receiver) return;
+      
+      document.getElementById('scanQrModal').style.display = 'none';
+      
+      const upiAddress = receiver.upi_id || `${receiver.phone}@paymoney`;
+      const fullName = receiver.full_name || 'User';
+      
+      if (window.location.pathname.endsWith('upi.html')) {
+        const sendUpiBtn = document.getElementById('sendUpiBtn');
+        if (sendUpiBtn) sendUpiBtn.click();
+        
+        const recipientUpiIdInput = document.getElementById('recipientUpiId');
+        if (recipientUpiIdInput) {
+          recipientUpiIdInput.value = upiAddress;
+          recipientUpiIdInput.readOnly = true;
+        }
+      } else {
+        const currentPath = window.location.href.split('?')[0];
+        const basePath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+        window.location.href = basePath + `upi.html?pa=${encodeURIComponent(upiAddress)}&pn=${encodeURIComponent(fullName)}`;
+      }
+    });
+  }
+}
+
+// Handle QR Display and Render
+async function handleShowQr(e) {
+  e.preventDefault();
+  
+  // Close mobile menu if active
+  const mobileMenu = document.querySelector('.mobile-menu');
+  if (mobileMenu && mobileMenu.classList.contains('active')) {
+    mobileMenu.classList.remove('active');
+    // Also reset hamburger lines opacity/transform if present
+    const hamburger = document.querySelector('.hamburger-menu');
+    if (hamburger) {
+      const bars = hamburger.querySelectorAll('.bar');
+      if (bars.length === 3) {
+        bars[0].style.transform = '';
+        bars[1].style.opacity = '1';
+        bars[2].style.transform = '';
+      }
+    }
+  }
+  
+  const qrModal = document.getElementById('qrModal');
+  if (!qrModal) return;
+  
+  // Display modal
+  qrModal.style.display = 'block';
+  
+  try {
+    // Load Qrious script
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js');
+    
+    const profile = await getProfile();
+    if (!profile) {
+      showNotification('Please log in first', 'error');
+      qrModal.style.display = 'none';
+      return;
+    }
+    
+    const upiAddress = profile.upi_id || `${profile.phone}@paymoney`;
+    const fullName = profile.full_name || 'User';
+    
+    // Update texts
+    document.getElementById('qrUserName').textContent = fullName;
+    document.getElementById('qrUserUpi').textContent = upiAddress;
+    
+    // Generate QR
+    const qrValue = `upi://pay?pa=${upiAddress}&pn=${encodeURIComponent(fullName)}&cu=INR`;
+    const canvas = document.getElementById('qrCanvas');
+    
+    const qr = new QRious({
+      element: canvas,
+      value: qrValue,
+      size: 220,
+      background: '#ffffff',
+      foreground: '#002970', // Brand secondary color
+      level: 'H'
+    });
+    
+    // Wire up download handler (remove old listener to prevent duplicates)
+    const downloadBtn = document.getElementById('downloadQrBtn');
+    const newDownloadBtn = downloadBtn.cloneNode(true);
+    downloadBtn.parentNode.replaceChild(newDownloadBtn, downloadBtn);
+    
+    newDownloadBtn.addEventListener('click', () => {
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `${fullName.replace(/\s+/g, '_')}_paymoney_qr.png`;
+      link.href = dataUrl;
+      link.click();
+      showNotification('QR Code downloaded successfully');
+    });
+    
+  } catch (error) {
+    console.error('Error generating QR:', error);
+    showNotification('Failed to generate QR code', 'error');
+    qrModal.style.display = 'none';
+  }
+}
+
 // Initialize common elements
 async function initCommon() {
   initMobileMenu();
   initLogout();
+  injectQrModal();
+  injectScanQrModals();
+  initQrMenuOptions();
   await updateUserInfo();
   initModals();
 }

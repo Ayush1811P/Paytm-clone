@@ -5,12 +5,7 @@
 let pendingPayment = null;
 
 document.addEventListener('DOMContentLoaded', async function() {
-  if (!(await requireAuth())) return;
-  
-  await loadUpiStatus();
-  await loadLinkedBanks();
-  await loadUpiTransactions();
-  
+  // 1. Initialize Event Listeners (Synchronous)
   const linkBankBtn = document.getElementById('linkBankBtn');
   if (linkBankBtn) {
     linkBankBtn.addEventListener('click', () => {
@@ -85,6 +80,28 @@ document.addEventListener('DOMContentLoaded', async function() {
   if (confirmPinBtn) {
     confirmPinBtn.addEventListener('click', handleConfirmPinPayment);
   }
+  
+  // 2. Check for scanned QR query parameters (Synchronous)
+  const urlParams = new URLSearchParams(window.location.search);
+  const qrUpiId = urlParams.get('pa') || urlParams.get('PA');
+  if (qrUpiId) {
+    if (sendUpiBtn) {
+      sendUpiBtn.click();
+    }
+    
+    // Pre-fill the recipient input field
+    const recipientUpiIdInput = document.getElementById('recipientUpiId');
+    if (recipientUpiIdInput) {
+      recipientUpiIdInput.value = decodeURIComponent(qrUpiId);
+      recipientUpiIdInput.readOnly = true;
+    }
+  }
+  
+  // 3. Require authentication and load async data
+  if (!(await requireAuth())) return;
+  await loadUpiStatus();
+  await loadLinkedBanks();
+  await loadUpiTransactions();
 });
 
 function showSetupStep(stepNumber) {
@@ -319,9 +336,14 @@ async function handleSendUpi(e) {
   }
   
   // Lookup receiver by UPI ID or Mobile Number
-  let query = supabaseClient.from('profiles').select('id, wallet_balance, upi_id');
+  let query = supabaseClient.from('profiles').select('id, wallet_balance, upi_id, phone');
   if (recipientUpiId.includes('@')) {
-    query = query.eq('upi_id', recipientUpiId);
+    if (recipientUpiId.endsWith('@paymoney')) {
+      const phoneNum = recipientUpiId.split('@')[0];
+      query = query.or(`upi_id.eq.${recipientUpiId},phone.eq.${phoneNum}`);
+    } else {
+      query = query.eq('upi_id', recipientUpiId);
+    }
   } else {
     query = query.eq('phone', recipientUpiId);
   }
