@@ -52,7 +52,7 @@ async function loadProfileData() {
   
   if (profileName) profileName.textContent = profile.full_name;
   if (profileEmail) profileEmail.textContent = profile.email || 'No email added';
-  if (profileAvatar) profileAvatar.src = profile.avatar_url || 'img/default-avatar.png';
+  if (profileAvatar) profileAvatar.src = getAvatarUrl(profile);
   
   const fullName = document.getElementById('fullName');
   const profileEmailInput = document.getElementById('profileEmailInput');

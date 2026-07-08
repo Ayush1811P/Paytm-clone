@@ -92,8 +92,6 @@ async function loadTransactions() {
     
     recentTransactions.forEach(transaction => {
       // If user is sender, it's a debit. If user is receiver, it's a credit.
-      // If add_money, sender_id is user, but it's a credit (or we just check transaction_type)
-      
       let isCredit = false;
       if (transaction.transaction_type === 'add_money') {
         isCredit = true;
@@ -103,9 +101,22 @@ async function loadTransactions() {
       
       const typeClass = isCredit ? 'credit' : 'debit';
       
+      let otherPerson = null;
+      if (transaction.transaction_type === 'add_money') {
+        otherPerson = user;
+      } else if (isCredit) {
+        otherPerson = transaction.sender;
+      } else {
+        otherPerson = transaction.receiver;
+      }
+      
+      const avatarUrl = getAvatarUrl(otherPerson);
+      
       transactionsHTML += `
         <div class="transaction-item">
-          <div class="transaction-icon ${typeClass}"></div>
+          <div class="transaction-icon" style="overflow: hidden; display: flex; align-items: center; justify-content: center; background: none;">
+            <img src="${avatarUrl}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+          </div>
           <div class="transaction-details">
             <div class="transaction-title">${transaction.description}</div>
             <div class="transaction-date">${formatDateTime(transaction.created_at)}</div>
@@ -171,6 +182,18 @@ function initAddMoneyModal() {
         return;
       }
       addMoneyModal.style.display = 'block';
+    });
+    
+    // Allow clicking the entire option box container to select the radio
+    const paymentOptions = document.querySelectorAll('.payment-option');
+    paymentOptions.forEach(option => {
+      option.addEventListener('click', function(e) {
+        if (e.target.tagName === 'INPUT') return;
+        const radio = option.querySelector('input[type="radio"]');
+        if (radio) {
+          radio.checked = true;
+        }
+      });
     });
     
     addMoneyForm.addEventListener('submit', handleAddMoney);

@@ -207,6 +207,14 @@ async function handleLogout(e) {
 }
 
 // Update user info in header
+function getAvatarUrl(profile) {
+  if (profile && profile.avatar_url) {
+    return profile.avatar_url;
+  }
+  const seed = profile ? (profile.full_name || profile.phone || 'user') : 'user';
+  return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(seed)}`;
+}
+
 async function updateUserInfo() {
   const userName = document.getElementById('userName');
   const userAvatar = document.getElementById('userAvatar');
@@ -218,7 +226,7 @@ async function updateUserInfo() {
         userName.textContent = profile.full_name;
       }
       if (userAvatar) {
-        userAvatar.src = profile.avatar_url || 'img/default-avatar.png';
+        userAvatar.src = getAvatarUrl(profile);
       }
     }
   }
@@ -372,15 +380,20 @@ async function handleScanQr(e) {
   const scannerInterface = document.getElementById('scannerInterface');
   const scanQrResultCard = document.getElementById('scanQrResultCard');
   const loadingBarContainer = document.getElementById('scanLoadingBarContainer');
-  const galleryPayBtn = document.getElementById('galleryPayBtn');
-  const fileNameDisplay = document.getElementById('qrFileName');
+  const scannerUploadControls = document.getElementById('scannerUploadControls');
+  const uploadedPreview = document.getElementById('uploadedQrPreview');
+  const scannerOverlay = document.getElementById('scannerOverlay');
   const fileInput = document.getElementById('qrFileInput');
   
   if (scannerInterface) scannerInterface.style.display = 'block';
   if (scanQrResultCard) scanQrResultCard.style.display = 'none';
   if (loadingBarContainer) loadingBarContainer.style.display = 'none';
-  if (galleryPayBtn) galleryPayBtn.style.display = 'none';
-  if (fileNameDisplay) fileNameDisplay.style.display = 'none';
+  if (scannerUploadControls) scannerUploadControls.style.display = 'block';
+  if (uploadedPreview) {
+    uploadedPreview.style.display = 'none';
+    uploadedPreview.src = '';
+  }
+  if (scannerOverlay) scannerOverlay.style.display = 'flex';
   if (fileInput) fileInput.value = '';
   
   scanQrModal.style.display = 'block';
@@ -401,110 +414,180 @@ async function handleScanQr(e) {
 
 function setupFileInputListener() {
   const fileInput = document.getElementById('qrFileInput');
-  const fileNameDisplay = document.getElementById('qrFileName');
-  const galleryPayBtn = document.getElementById('galleryPayBtn');
   
   if (fileInput && !fileInput.dataset.listenerAttached) {
     fileInput.dataset.listenerAttached = 'true';
     
-    // File input change handler (Only shows file name and PAY button)
-    fileInput.addEventListener('change', (e) => {
-      if (e.target.files.length === 0) {
-        if (fileNameDisplay) fileNameDisplay.style.display = 'none';
-        if (galleryPayBtn) galleryPayBtn.style.display = 'none';
-        return;
-      }
-      
+    fileInput.addEventListener('change', async (e) => {
+      if (e.target.files.length === 0) return;
       const imageFile = e.target.files[0];
-      if (fileNameDisplay) {
-        fileNameDisplay.textContent = `Selected: ${imageFile.name}`;
-        fileNameDisplay.style.display = 'block';
-      }
-      if (galleryPayBtn) {
-        galleryPayBtn.style.display = 'block';
-      }
-    });
-    
-    // PAY button click handler (Performs scan animation and decoding)
-    if (galleryPayBtn) {
-      galleryPayBtn.addEventListener('click', async () => {
-        if (fileInput.files.length === 0) return;
-        const imageFile = fileInput.files[0];
+      
+      // Stop active camera
+      await stopCameraScanner();
+      
+      const scannerOverlay = document.getElementById('scannerOverlay');
+      const uploadedPreview = document.getElementById('uploadedQrPreview');
+      const scannerUploadControls = document.getElementById('scannerUploadControls');
+      const loadingBarContainer = document.getElementById('scanLoadingBarContainer');
+      const progressBar = document.getElementById('scanLoadingProgress');
+      
+      // Hide uploader controls immediately
+      if (scannerUploadControls) scannerUploadControls.style.display = 'none';
+      
+      // Read the file for preview and scan
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        // Show uploaded image inside viewfinder box and remove scanner overlay
+        if (uploadedPreview) {
+          uploadedPreview.src = event.target.result;
+          uploadedPreview.style.display = 'block';
+        }
+        if (scannerOverlay) {
+          scannerOverlay.style.display = 'none';
+        }
         
-        // Stop active camera
-        await stopCameraScanner();
-        
-        const scannerInterface = document.getElementById('scannerInterface');
-        const loadingBarContainer = document.getElementById('scanLoadingBarContainer');
-        const progressBar = document.getElementById('scanLoadingProgress');
-        
-        if (scannerInterface) scannerInterface.style.display = 'none';
+        // Show loading spinner progress bar
         if (loadingBarContainer) loadingBarContainer.style.display = 'block';
         if (progressBar) progressBar.style.width = '0%';
         
-        try {
-          // Load jsQR dynamically
-          await loadScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js');
+        // Animate progress bar over 1000ms
+        let progress = 0;
+        const interval = setInterval(() => {
+          progress += 10;
+          if (progressBar) progressBar.style.width = `${progress}%`;
           
-          // Animate progress bar over 1000ms
-          let progress = 0;
-          const interval = setInterval(() => {
-            progress += 10;
-            if (progressBar) progressBar.style.width = `${progress}%`;
+          if (progress >= 100) {
+            clearInterval(interval);
             
-            if (progress >= 100) {
-              clearInterval(interval);
+            // Perform decode
+            const img = new Image();
+            img.onload = async function() {
+              const maxDimension = 800;
+              let width = img.width;
+              let height = img.height;
               
-              // Read and decode the image file
-              const reader = new FileReader();
-              reader.onload = function(event) {
-                const img = new Image();
-                img.onload = async function() {
-                  const canvas = document.createElement('canvas');
-                  canvas.width = img.width;
-                  canvas.height = img.height;
-                  const ctx = canvas.getContext('2d');
-                  ctx.drawImage(img, 0, 0);
-                  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                  
-                  const code = jsQR(imageData.data, imageData.width, imageData.height);
-                  if (code) {
-                    if (loadingBarContainer) loadingBarContainer.style.display = 'none';
-                    await onQrScanSuccess(code.data);
-                  } else {
-                    showNotification("Could not find a valid QR code in the image. Please select a clear QR code.", "error");
-                    // Reset to initial scan view
-                    if (loadingBarContainer) loadingBarContainer.style.display = 'none';
-                    if (scannerInterface) scannerInterface.style.display = 'block';
-                    if (galleryPayBtn) galleryPayBtn.style.display = 'none';
-                    if (fileNameDisplay) fileNameDisplay.style.display = 'none';
-                    fileInput.value = '';
-                  }
-                };
-                img.src = event.target.result;
-              };
-              reader.readAsDataURL(imageFile);
-            }
-          }, 100);
-          
-        } catch (err) {
-          console.error("QR Scan from file failed:", err);
-          showNotification("Failed to scan file.", "error");
-          if (loadingBarContainer) loadingBarContainer.style.display = 'none';
-          if (scannerInterface) scannerInterface.style.display = 'block';
-        }
-      });
+              if (width > maxDimension || height > maxDimension) {
+                if (width > height) {
+                  height = Math.round((height * maxDimension) / width);
+                  width = maxDimension;
+                } else {
+                  width = Math.round((width * maxDimension) / height);
+                  height = maxDimension;
+                }
+              }
+              
+              const canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              
+              try {
+                // Try Engine 1: Html5Qrcode scanFile (highly optimized for screenshots/noise)
+                try {
+                  const html5Qr = new Html5Qrcode("qrReader");
+                  const decodedText = await html5Qr.scanFile(imageFile, false);
+                  if (loadingBarContainer) loadingBarContainer.style.display = 'none';
+                  await onQrScanSuccess(decodedText);
+                  return;
+                } catch (html5Err) {
+                  console.warn("Engine 1 (Html5Qrcode) scan file failed, trying Engine 2 (jsQR)...", html5Err);
+                }
+
+                // Try Engine 2: jsQR pixel array decoder (fallback)
+                await loadScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js');
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code) {
+                  if (loadingBarContainer) loadingBarContainer.style.display = 'none';
+                  await onQrScanSuccess(code.data);
+                } else {
+                  showNotification("Could not find a valid QR code in the image. Please select a clear QR code.", "error");
+                  resetScannerView();
+                }
+              } catch (err) {
+                console.error("Dual-engine QR scan failed:", err);
+                showNotification("Failed to scan QR image.", "error");
+                resetScannerView();
+              }
+            };
+            img.onerror = function() {
+              showNotification("Failed to load image preview.", "error");
+              resetScannerView();
+            };
+            img.src = event.target.result;
+          }
+        }, 100);
+      };
+      
+      reader.onerror = function() {
+        showNotification("Failed to read image file.", "error");
+        resetScannerView();
+      };
+      
+      reader.readAsDataURL(imageFile);
+    });
+  }
+}
+
+function resetScannerView() {
+  const scannerInterface = document.getElementById('scannerInterface');
+  const scannerOverlay = document.getElementById('scannerOverlay');
+  const uploadedPreview = document.getElementById('uploadedQrPreview');
+  const scannerUploadControls = document.getElementById('scannerUploadControls');
+  const loadingBarContainer = document.getElementById('scanLoadingBarContainer');
+  const fileInput = document.getElementById('qrFileInput');
+  
+  if (loadingBarContainer) loadingBarContainer.style.display = 'none';
+  if (uploadedPreview) {
+    uploadedPreview.style.display = 'none';
+    uploadedPreview.src = '';
+  }
+  if (scannerOverlay) scannerOverlay.style.display = 'flex';
+  if (scannerUploadControls) scannerUploadControls.style.display = 'block';
+  if (scannerInterface) scannerInterface.style.display = 'block';
+  if (fileInput) fileInput.value = '';
+  
+  // Restart camera stream
+  startCameraScanner();
+}
+
+async function requestCameraAccess() {
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    try {
+      // Force prompt for camera permission
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      // Stop the stream immediately to free the resource
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    } catch (err) {
+      console.error("Camera access permission denied:", err);
+      return false;
     }
   }
+  return false;
 }
 
 async function startCameraScanner() {
   try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      // file:// context blocker notice
+      showNotification("Browser blocks camera access on local files (file://). Please upload your QR image instead.", "warning");
+      return;
+    }
+    
+    showNotification("Requesting camera access...");
+    const hasPermission = await requestCameraAccess();
+    if (!hasPermission) {
+      showNotification("Camera access denied. Please grant permission in browser settings or upload the QR image.", "error");
+      return;
+    }
+    
     if (!html5Qrcode) {
       html5Qrcode = new Html5Qrcode("qrReader");
     }
     
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    const config = { fps: 10, qrbox: { width: 220, height: 220 } };
     
     await html5Qrcode.start(
       { facingMode: "environment" },
@@ -518,7 +601,7 @@ async function startCameraScanner() {
     );
   } catch (err) {
     console.error("Camera access failed", err);
-    showNotification("Camera access denied or unavailable. Please upload a QR code image below.", "error");
+    showNotification("Failed to start camera. Please upload the QR code image below.", "error");
   }
 }
 
@@ -598,6 +681,9 @@ async function onQrScanSuccess(decodedText) {
   document.getElementById('resolvedReceiverUpi').textContent = upiAddress;
   document.getElementById('resolvedReceiverAvatar').textContent = (receiverData.full_name || 'U').charAt(0).toUpperCase();
   
+  // Update button text to "Pay to [User Name]"
+  document.getElementById('proceedToPayBtn').textContent = `Pay to ${receiverData.full_name}`;
+  
   // Switch modal view
   document.getElementById('scannerInterface').style.display = 'none';
   document.getElementById('scanQrResultCard').style.display = 'block';
@@ -614,6 +700,19 @@ function injectScanQrModals() {
           0% { top: 0%; }
           50% { top: 100%; }
           100% { top: 0%; }
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .loader-spinner {
+          width: 40px; 
+          height: 40px; 
+          border: 4px solid var(--border-color); 
+          border-top-color: var(--primary-color); 
+          border-radius: 50%; 
+          animation: spin 1s linear infinite;
+          margin: 0 auto 12px auto;
         }
         .scanner-viewfinder {
           position: relative; 
@@ -672,7 +771,10 @@ function injectScanQrModals() {
           <!-- Styled Viewfinder -->
           <div class="scanner-viewfinder">
             <div id="qrReader" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1;"></div>
-            <div class="scanner-overlay">
+            <!-- Uploaded Image Preview -->
+            <img id="uploadedQrPreview" style="display: none; width: 100%; height: 100%; object-fit: contain; position: absolute; top: 0; left: 0; z-index: 2;" alt="Uploaded QR Preview">
+            
+            <div class="scanner-overlay" id="scannerOverlay">
               <div class="scanner-target-box">
                 <div class="scanner-laser-line"></div>
               </div>
@@ -687,7 +789,7 @@ function injectScanQrModals() {
           </div>
           
           <!-- Styled Gallery Upload -->
-          <div class="form-group" style="text-align: left; margin-bottom: 0;">
+          <div class="form-group" style="text-align: left; margin-bottom: 0;" id="scannerUploadControls">
             <label style="display: block; font-weight: 500; margin-bottom: 8px; font-size: 0.95rem; color: var(--text-dark);">Upload from Gallery</label>
             <div style="display: flex; flex-direction: column; gap: var(--spacing-sm);">
               <label for="qrFileInput" class="btn btn-outline" style="cursor: pointer; border: 1px dashed var(--primary-color); background-color: var(--primary-light); color: var(--primary-dark); padding: 10px 16px; border-radius: var(--border-radius-md); font-weight: 500; display: inline-flex; align-items: center; gap: 8px; margin: 0; justify-content: center; width: 100%; transition: all var(--transition-fast);">
@@ -695,16 +797,14 @@ function injectScanQrModals() {
                 Choose QR Image
               </label>
               <input type="file" id="qrFileInput" accept="image/*" style="display: none;">
-              <p id="qrFileName" style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-medium); font-style: italic; display: none; text-align: center; word-break: break-all;"></p>
             </div>
-            
-            <button id="galleryPayBtn" class="btn btn-primary" style="width: 100%; margin-top: var(--spacing-md); display: none;">PAY</button>
           </div>
         </div>
         
-        <!-- Loading bar -->
-        <div id="scanLoadingBarContainer" style="display: none; padding: var(--spacing-lg) 0;">
-          <p style="color: var(--secondary-color); font-weight: 600; margin-bottom: 12px; font-size: 1.05rem;" id="scanLoadingText">Scanning QR code, please wait...</p>
+        <!-- Loading spinner and bar -->
+        <div id="scanLoadingBarContainer" style="display: none; padding: var(--spacing-lg) 0; text-align: center;">
+          <div class="loader-spinner"></div>
+          <p style="color: var(--secondary-color); font-weight: 600; margin-bottom: 12px; font-size: 1.05rem;" id="scanLoadingText">Please wait...</p>
           <div style="width: 100%; height: 8px; background-color: var(--bg-grey); border-radius: 4px; overflow: hidden; position: relative; border: 1px solid var(--border-color);">
             <div id="scanLoadingProgress" style="width: 0%; height: 100%; background-color: var(--primary-color); transition: width 0.1s linear; border-radius: 4px;"></div>
           </div>
@@ -718,7 +818,7 @@ function injectScanQrModals() {
             <h3 id="resolvedReceiverName" style="margin: 0; font-size: 1.15rem; font-weight: 600; color: var(--text-dark);">Receiver Name</h3>
             <p id="resolvedReceiverUpi" style="margin: 4px 0 0 0; font-size: 0.9rem; color: var(--text-medium); font-family: monospace; letter-spacing: 0.5px;">receiver@paymoney</p>
           </div>
-          <button id="proceedToPayBtn" class="btn btn-primary" style="width: 100%;">PAY</button>
+          <button id="proceedToPayBtn" class="btn btn-primary" style="width: 100%;">Pay to User</button>
         </div>
       </div>
     </div>
@@ -826,8 +926,8 @@ async function handleShowQr(e) {
       value: qrValue,
       size: 220,
       background: '#ffffff',
-      foreground: '#002970', // Brand secondary color
-      level: 'H'
+      foreground: '#000000', // Set to pure black for high contrast scanning
+      level: 'M' // Set to Medium (less dense blocks, faster scanning)
     });
     
     // Wire up download handler (remove old listener to prevent duplicates)

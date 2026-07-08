@@ -182,15 +182,30 @@ async function loadUpiTransactions() {
   let transactionsHTML = '';
   const user = await getUser();
   
-  upiTxns.forEach(tx => {
+  const recentTxns = upiTxns.slice(0, 5);
+  
+  recentTxns.forEach(tx => {
     let isCredit = false;
     if (tx.receiver_id === user.id) isCredit = true;
     
     const typeClass = isCredit ? 'credit' : 'debit';
     
+    let otherPerson = null;
+    if (tx.transaction_type === 'add_money') {
+      otherPerson = user;
+    } else if (isCredit) {
+      otherPerson = tx.sender;
+    } else {
+      otherPerson = tx.receiver;
+    }
+    
+    const avatarUrl = getAvatarUrl(otherPerson);
+    
     transactionsHTML += `
       <div class="transaction-item">
-        <div class="transaction-icon ${typeClass}"></div>
+        <div class="transaction-icon" style="overflow: hidden; display: flex; align-items: center; justify-content: center; background: none;">
+          <img src="${avatarUrl}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+        </div>
         <div class="transaction-details">
           <div class="transaction-title">${tx.description}</div>
           <div class="transaction-date">${formatDateTime(tx.created_at)}</div>
