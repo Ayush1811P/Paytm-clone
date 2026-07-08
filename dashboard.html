@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAYMONEY - Dashboard</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+</head>
+<body>
+  <header class="main-header">
+    <div class="header-content">
+      <div class="logo">
+        <h1>PAY<span>MONEY</span></h1>
+      </div>
+      
+      <div class="user-menu">
+        <div class="user-profile">
+          <img id="userAvatar" src="img/default-avatar.png" alt="User Avatar">
+          <span id="userName">User</span>
+        </div>
+        <button id="logoutBtn" class="btn btn-outline">Logout</button>
+      </div>
+      
+      <div class="hamburger-menu">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+      </div>
+    </div>
+  </header>
+  
+  <nav class="main-nav">
+    <ul class="nav-tabs">
+      <li class="active"><a href="#wallet">Wallet</a></li>
+      <li><a href="upi.html">UPI</a></li>
+      <li><a href="recharge.html">Recharge</a></li>
+      <li><a href="profile.html">Profile</a></li>
+    </ul>
+  </nav>
+  
+  <div class="mobile-menu">
+    <ul>
+      <li><a href="#wallet">Wallet</a></li>
+      <li><a href="upi.html">UPI</a></li>
+      <li><a href="recharge.html">Recharge</a></li>
+      <li><a href="profile.html">Profile</a></li>
+      <li><a href="#" id="mobileLogout">Logout</a></li>
+    </ul>
+  </div>
+  
+  <main class="dashboard-container">
+    <section class="balance-section">
+      <div class="balance-card">
+        <h2>Wallet Balance</h2>
+        <div class="amount">₹<span id="walletBalance">10,000</span></div>
+        <p>Last updated: <span id="lastUpdated">Today</span></p>
+      </div>
+      
+      <div class="action-buttons">
+        <button id="sendMoneyBtn" class="btn btn-primary">Send Money</button>
+        <button id="addMoneyBtn" class="btn btn-secondary">Add Money</button>
+      </div>
+    </section>
+    
+    <section class="quick-actions">
+      <h3>Quick Actions</h3>
+      <div class="action-grid">
+        <a href="recharge.html" class="action-item">
+          <div class="action-icon mobile-recharge"></div>
+          <p>Mobile Recharge</p>
+        </a>
+        <div class="action-item">
+          <div class="action-icon electricity"></div>
+          <p>Electricity</p>
+        </div>
+        <div class="action-item">
+          <div class="action-icon dth"></div>
+          <p>DTH</p>
+        </div>
+        <div class="action-item">
+          <div class="action-icon broadband"></div>
+          <p>Broadband</p>
+        </div>
+        <a href="upi.html" class="action-item">
+          <div class="action-icon upi"></div>
+          <p>UPI Transfer</p>
+        </a>
+        <div class="action-item">
+          <div class="action-icon cashback"></div>
+          <p>Cashback Offers</p>
+        </div>
+        <a href="profile.html" class="action-item">
+          <div class="action-icon profile"></div>
+          <p>My Profile</p>
+        </a>
+        <div class="action-item">
+          <div class="action-icon help"></div>
+          <p>Help & Support</p>
+        </div>
+      </div>
+    </section>
+    
+    <section class="transactions-section">
+      <h3>Recent Transactions</h3>
+      <div id="transactionsList" class="transactions-list">
+        <!-- Transactions will be populated here by JavaScript -->
+      </div>
+    </section>
+  </main>
+  
+  <!-- Add Money Modal -->
+  <div id="addMoneyModal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal">&times;</span>
+      <h2>Add Money to Wallet</h2>
+      <form id="addMoneyForm">
+        <div class="form-group">
+          <label for="addAmount">Amount (₹)</label>
+          <input type="number" id="addAmount" min="1" max="50000" required placeholder="Enter amount">
+        </div>
+        
+        <div class="payment-methods">
+          <h3>Payment Method</h3>
+          <div class="payment-options">
+            <div class="payment-option">
+              <input type="radio" name="paymentMethod" id="methodUPI" value="upi" checked>
+              <label for="methodUPI">UPI</label>
+            </div>
+            <div class="payment-option">
+              <input type="radio" name="paymentMethod" id="methodCard" value="card">
+              <label for="methodCard">Debit/Credit Card</label>
+            </div>
+            <div class="payment-option">
+              <input type="radio" name="paymentMethod" id="methodNetBanking" value="netbanking">
+              <label for="methodNetBanking">Net Banking</label>
+            </div>
+          </div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Proceed to Payment</button>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Send Money Modal -->
+  <div id="sendMoneyModal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal">&times;</span>
+      <h2>Send Money</h2>
+      <form id="sendMoneyForm">
+        <div class="form-group">
+          <label for="recipientMobile">Mobile Number / UPI ID</label>
+          <input type="text" id="recipientMobile" required placeholder="Enter mobile or UPI ID">
+        </div>
+        
+        <div class="form-group">
+          <label for="sendAmount">Amount (₹)</label>
+          <input type="number" id="sendAmount" min="1" required placeholder="Enter amount">
+        </div>
+        
+        <div class="form-group">
+          <label for="sendNote">Note (Optional)</label>
+          <input type="text" id="sendNote" placeholder="Add a note">
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Send Money</button>
+      </form>
+    </div>
+  </div>
+  
+  <div id="notification" class="notification"></div>
+  
+  <script src="js/utils.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
