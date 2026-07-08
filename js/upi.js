@@ -81,6 +81,18 @@ document.addEventListener('DOMContentLoaded', async function() {
     confirmPinBtn.addEventListener('click', handleConfirmPinPayment);
   }
   
+  const closeUpiSuccessBtn = document.getElementById('closeUpiSuccessBtn');
+  if (closeUpiSuccessBtn) {
+    closeUpiSuccessBtn.addEventListener('click', () => {
+      document.getElementById('upiSuccessModal').style.display = 'none';
+    });
+  }
+  
+  const downloadUpiReceiptBtn = document.getElementById('downloadUpiReceiptBtn');
+  if (downloadUpiReceiptBtn) {
+    downloadUpiReceiptBtn.addEventListener('click', downloadUpiReceipt);
+  }
+  
   // 2. Check for scanned QR query parameters (Synchronous)
   const urlParams = new URLSearchParams(window.location.search);
   const qrUpiId = urlParams.get('pa') || urlParams.get('PA');
@@ -460,10 +472,28 @@ async function handleConfirmPinPayment() {
     pendingPayment.receiverId
   );
   
-  // Reset and hide
+  // Reset and hide PIN modal
   document.getElementById('upiPinModal').style.display = 'none';
   const sendUpiForm = document.getElementById('sendUpiForm');
   if (sendUpiForm) sendUpiForm.reset();
+  
+  // Populate success receipt details
+  const successUpiRecipient = document.getElementById('successUpiRecipient');
+  const successUpiAmount = document.getElementById('successUpiAmount');
+  const upiTxnId = document.getElementById('upiTransactionId');
+  const upiTxnTime = document.getElementById('upiTransactionTime');
+  
+  const genTxnId = 'TXN' + Math.floor(Math.random() * 1000000000);
+  const genTime = new Date().toLocaleString();
+  
+  if (successUpiRecipient) successUpiRecipient.textContent = pendingPayment.receiverUpiId;
+  if (successUpiAmount) successUpiAmount.textContent = `₹${formatCurrency(pendingPayment.amount)}`;
+  if (upiTxnId) upiTxnId.textContent = genTxnId;
+  if (upiTxnTime) upiTxnTime.textContent = genTime;
+  
+  // Display success modal
+  const upiSuccessModal = document.getElementById('upiSuccessModal');
+  if (upiSuccessModal) upiSuccessModal.style.display = 'block';
   
   showNotification(`Payment of ₹${formatCurrency(pendingPayment.amount)} successful`);
   
@@ -472,4 +502,52 @@ async function handleConfirmPinPayment() {
   pendingPayment = null;
   
   await loadUpiTransactions();
+}
+
+async function downloadUpiReceipt() {
+  const downloadBtn = document.getElementById('downloadUpiReceiptBtn');
+  if (!downloadBtn) return;
+  
+  const originalText = downloadBtn.textContent;
+  downloadBtn.disabled = true;
+  downloadBtn.textContent = 'Generating...';
+  
+  try {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    
+    const successActions = document.querySelector('#upiSuccessModalContent .success-actions');
+    const modalContent = document.getElementById('upiSuccessModalContent');
+    
+    // Hide buttons temporarily so they don't appear in the image
+    if (successActions) successActions.style.display = 'none';
+    
+    const originalBg = modalContent.style.background;
+    const originalPadding = modalContent.style.padding;
+    modalContent.style.background = '#ffffff';
+    modalContent.style.padding = '30px';
+    
+    const canvas = await html2canvas(modalContent, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff'
+    });
+    
+    if (successActions) successActions.style.display = 'flex';
+    modalContent.style.background = originalBg;
+    modalContent.style.padding = originalPadding;
+    
+    const imgData = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `PayMoney_UPI_Receipt_${Date.now()}.png`;
+    link.href = imgData;
+    link.click();
+    
+    showNotification('Receipt downloaded successfully!');
+  } catch (error) {
+    console.error('Error generating receipt image:', error);
+    showNotification('Failed to generate receipt image.', 'error');
+  } finally {
+    downloadBtn.disabled = false;
+    downloadBtn.textContent = originalText;
+  }
 }

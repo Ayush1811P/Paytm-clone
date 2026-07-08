@@ -298,8 +298,41 @@
         </div>
       </div>
     </div>
+  <!-- UPI Payment Success Modal -->
+  <div id="upiSuccessModal" class="modal" style="display: none;">
+    <div class="modal-content success-modal" id="upiSuccessModalContent">
+      <div class="success-icon" style="color: var(--success-color); margin-bottom: var(--spacing-md); text-align: center;">
+        <svg viewBox="0 0 24 24" width="64" height="64" style="fill: currentColor;">
+          <path d="M12,0A12,12,0,1,0,24,12,12,12,0,0,0,12,0Zm6.93,8.2-6.85,9.29a1,1,0,0,1-1.43.19l-4.28-3.57a1,1,0,0,1,1.27-1.53l3.48,2.9,6.18-8.39a1,1,0,1,1,1.63,1.11Z"/>
+        </svg>
+      </div>
+      <h2 style="color: var(--text-dark); margin-bottom: var(--spacing-sm); font-weight: 700; text-align: center;">Payment Successful!</h2>
+      <div class="success-details" style="background: var(--bg-grey); padding: var(--spacing-lg); border-radius: var(--border-radius-lg); margin-bottom: var(--spacing-lg); border: 1px solid var(--border-color);">
+        <p style="color: var(--text-medium); margin-bottom: var(--spacing-md); font-size: 0.95rem; text-align: center;">Your payment has been successfully processed.</p>
+        <div class="detail-row" style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.95rem;">
+          <span style="color: var(--text-medium);">To:</span>
+          <span id="successUpiRecipient" style="font-weight: 600; color: var(--text-dark);"></span>
+        </div>
+        <div class="detail-row" style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.95rem;">
+          <span style="color: var(--text-medium);">Amount:</span>
+          <span id="successUpiAmount" style="font-weight: 600; color: var(--text-dark);"></span>
+        </div>
+        <div class="detail-row" style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.95rem;">
+          <span style="color: var(--text-medium);">Transaction ID:</span>
+          <span id="upiTransactionId" style="font-family: monospace; color: var(--text-dark);"></span>
+        </div>
+        <div class="detail-row" style="display: flex; justify-content: space-between; margin-bottom: 0; font-size: 0.95rem;">
+          <span style="color: var(--text-medium);">Date & Time:</span>
+          <span id="upiTransactionTime" style="color: var(--text-dark);"></span>
+        </div>
+      </div>
+      <div class="success-actions" style="display: flex; gap: var(--spacing-md); justify-content: center;">
+        <button id="downloadUpiReceiptBtn" class="btn btn-outline" style="flex: 1;">Download Receipt</button>
+        <button id="closeUpiSuccessBtn" class="btn btn-primary" style="flex: 1;">Done</button>
+      </div>
+    </div>
   </div>
-  
+
   <div id="notification" class="notification"></div>
   
   <script src="js/utils.js"></script>

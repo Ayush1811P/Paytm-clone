@@ -119,6 +119,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
   }
 
+  const downloadReceiptBtn = document.getElementById('downloadReceiptBtn');
+  if (downloadReceiptBtn) {
+    downloadReceiptBtn.addEventListener('click', downloadReceipt);
+  }
+
   // Initialize plans category tabs click listeners
   const planTabs = document.querySelectorAll('.plan-tab');
   planTabs.forEach(tab => {
@@ -232,8 +237,16 @@ async function handleConfirmRecharge() {
   
   const successMobile = document.getElementById('successMobile');
   const successAmount = document.getElementById('successAmount');
+  const transactionId = document.getElementById('transactionId');
+  const transactionTime = document.getElementById('transactionTime');
+  
+  const genTxnId = 'TXN' + Math.floor(Math.random() * 1000000000);
+  const genTime = new Date().toLocaleString();
+  
   if (successMobile) successMobile.textContent = currentRecharge.mobileNumber;
   if (successAmount) successAmount.textContent = `₹${rechargeAmount}`;
+  if (transactionId) transactionId.textContent = genTxnId;
+  if (transactionTime) transactionTime.textContent = genTime;
   
   document.getElementById('rechargeSuccessModal').style.display = 'block';
 }
@@ -244,4 +257,52 @@ function resetRechargeForm() {
   document.getElementById('plansContainer').classList.add('hidden');
   document.getElementById('rechargeConfirmation').classList.add('hidden');
   currentRecharge = { mobileNumber: '', operator: '', circle: '', plan: null };
+}
+
+async function downloadReceipt() {
+  const downloadBtn = document.getElementById('downloadReceiptBtn');
+  if (!downloadBtn) return;
+  
+  const originalText = downloadBtn.textContent;
+  downloadBtn.disabled = true;
+  downloadBtn.textContent = 'Generating...';
+  
+  try {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    
+    const successActions = document.querySelector('.success-actions');
+    const modalContent = document.querySelector('.success-modal');
+    
+    // Hide buttons temporarily so they don't appear in the image
+    if (successActions) successActions.style.display = 'none';
+    
+    const originalBg = modalContent.style.background;
+    const originalPadding = modalContent.style.padding;
+    modalContent.style.background = '#ffffff';
+    modalContent.style.padding = '30px';
+    
+    const canvas = await html2canvas(modalContent, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff'
+    });
+    
+    if (successActions) successActions.style.display = 'flex';
+    modalContent.style.background = originalBg;
+    modalContent.style.padding = originalPadding;
+    
+    const imgData = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `PayMoney_Recharge_Receipt_${Date.now()}.png`;
+    link.href = imgData;
+    link.click();
+    
+    showNotification('Receipt downloaded successfully!');
+  } catch (error) {
+    console.error('Error generating receipt image:', error);
+    showNotification('Failed to generate receipt image.', 'error');
+  } finally {
+    downloadBtn.disabled = false;
+    downloadBtn.textContent = originalText;
+  }
 }
