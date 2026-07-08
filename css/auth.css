@@ -148,3 +148,38 @@
 .toggle-password-btn:hover svg {
   fill: var(--primary-color);
 }
+
+/* Terms Modal Specific Styles */
+.terms-modal-content {
+  max-width: 600px;
+  margin: 5% auto;
+}
+
+.terms-body {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  background-color: var(--bg-light);
+  margin-top: var(--spacing-md);
+  text-align: left;
+}
+
+.terms-body h3 {
+  font-size: var(--font-size-md);
+  margin-top: var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+  color: var(--secondary-color);
+}
+
+.terms-body p, .terms-body ul {
+  font-size: var(--font-size-sm);
+  color: var(--text-medium);
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.6;
+}
+
+.terms-body ul {
+  padding-left: var(--spacing-lg);
+}

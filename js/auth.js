@@ -79,6 +79,42 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
       });
     }
+    
+    // Terms modal logic
+    const termsModal = document.getElementById('termsModal');
+    const viewTermsLink = document.getElementById('viewTermsLink');
+    const closeTermsBtn = document.getElementById('closeTermsBtn');
+    const acceptTermsBtn = document.getElementById('acceptTermsBtn');
+    const termsAgreeCheckbox = document.getElementById('termsAgree');
+    
+    if (viewTermsLink && termsModal) {
+      viewTermsLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        termsModal.style.display = 'block';
+      });
+    }
+    
+    if (closeTermsBtn && termsModal) {
+      closeTermsBtn.addEventListener('click', function() {
+        termsModal.style.display = 'none';
+      });
+    }
+    
+    if (acceptTermsBtn && termsModal) {
+      acceptTermsBtn.addEventListener('click', function() {
+        termsModal.style.display = 'none';
+        if (termsAgreeCheckbox) {
+          termsAgreeCheckbox.checked = true;
+        }
+      });
+    }
+    
+    // Close modal if clicking outside content
+    window.addEventListener('click', function(e) {
+      if (e.target === termsModal) {
+        termsModal.style.display = 'none';
+      }
+    });
   }
 });
 
