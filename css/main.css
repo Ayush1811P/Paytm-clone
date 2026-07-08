@@ -210,6 +210,19 @@ img {
   color: var(--primary-color);
 }
 
+.logo a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.logo img {
+  height: 54px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.15));
+}
+
 .desktop-nav ul {
   display: flex;
   gap: var(--spacing-lg);
@@ -233,12 +246,21 @@ img {
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
+  margin-left: auto;
+  margin-right: var(--spacing-md);
+}
+
+#logoutBtn {
+  display: none;
 }
 
 .user-profile {
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
 }
 
 .user-profile img {
@@ -249,7 +271,7 @@ img {
 }
 
 .hamburger-menu {
-  display: none;
+  display: flex;
   flex-direction: column;
   cursor: pointer;
 }
@@ -263,7 +285,7 @@ img {
 }
 
 .mobile-menu {
-  display: none;
+  display: block;
   position: fixed;
   top: 64px;
   left: 0;
@@ -404,6 +426,18 @@ input::placeholder, select::placeholder, textarea::placeholder {
 
 .notification.show {
   transform: translateY(0);
+}
+
+.notification.top-center {
+  bottom: auto;
+  left: 50%;
+  right: auto;
+  top: var(--spacing-lg);
+  transform: translate(-50%, -150%);
+}
+
+.notification.top-center.show {
+  transform: translate(-50%, 0);
 }
 
 /* Footer */
@@ -549,8 +583,22 @@ input::placeholder, select::placeholder, textarea::placeholder {
     display: none;
   }
   
-  .hamburger-menu {
-    display: flex;
+  .logo h1 {
+    font-size: var(--font-size-lg);
+  }
+  
+  .logo img {
+    height: 44px;
+  }
+  
+  .user-profile #userName {
+    display: none;
+  }
+  
+  .user-profile img {
+    width: 34px;
+    height: 34px;
+    border: 2px solid var(--primary-color);
   }
   
   .form-row {
@@ -566,6 +614,12 @@ input::placeholder, select::placeholder, textarea::placeholder {
   .footer-bottom {
     flex-direction: column;
     gap: var(--spacing-md);
+  }
+  
+  .modal-content {
+    width: 85%;
+    margin: 15% auto;
+    padding: var(--spacing-lg);
   }
 }
 

@@ -1,62 +1,82 @@
 /**
- * Dashboard functionality for the PayMoney application
+ * Dashboard functionality for the PayMoney application (Supabase Integrated)
  */
 
-// Initialize dashboard
-document.addEventListener('DOMContentLoaded', function() {
+let isBalanceVisible = false;
+let currentWalletBalance = 0;
+
+document.addEventListener('DOMContentLoaded', async function() {
   // Require authentication
-  if (!requireAuth()) return;
+  if (!(await requireAuth())) return;
   
   // Load wallet data
-  loadWalletData();
+  await loadWalletData();
   
   // Load transactions
-  loadTransactions();
+  await loadTransactions();
   
   // Initialize modals
   initAddMoneyModal();
   initSendMoneyModal();
+  
+  // Initialize eye toggle for wallet balance
+  const toggleBalanceBtn = document.getElementById('toggleBalanceBtn');
+  if (toggleBalanceBtn) {
+    toggleBalanceBtn.addEventListener('click', () => {
+      isBalanceVisible = !isBalanceVisible;
+      updateBalanceUI();
+    });
+  }
 });
 
 // Load wallet data
-function loadWalletData() {
+async function loadWalletData() {
   const walletBalanceElement = document.getElementById('walletBalance');
   const lastUpdatedElement = document.getElementById('lastUpdated');
   
   if (walletBalanceElement) {
-    const walletData = localStorage.getItem(STORAGE_KEYS.WALLET);
-    if (walletData) {
-      const wallet = JSON.parse(walletData);
-      walletBalanceElement.textContent = formatCurrency(wallet.balance);
+    const profile = await getProfile();
+    if (profile) {
+      currentWalletBalance = profile.wallet_balance;
       
-      if (lastUpdatedElement && wallet.lastUpdated) {
-        const lastUpdated = new Date(wallet.lastUpdated);
-        const now = new Date();
-        
-        if (lastUpdated.toDateString() === now.toDateString()) {
-          lastUpdatedElement.textContent = 'Today';
-        } else {
-          lastUpdatedElement.textContent = formatDate(lastUpdated);
-        }
-      }
-    } else {
-      // Initialize wallet with default balance for demo
-      updateWalletBalance(10000);
-      walletBalanceElement.textContent = '10,000';
+      // Update UI based on visibility state
+      updateBalanceUI();
       
-      if (lastUpdatedElement) {
-        lastUpdatedElement.textContent = 'Today';
+      if (lastUpdatedElement && profile.created_at) {
+        lastUpdatedElement.textContent = 'Live Data'; // Or format latest txn
       }
     }
   }
 }
 
+// Update the balance text and eye icon state based on isBalanceVisible
+function updateBalanceUI() {
+  const walletBalanceElement = document.getElementById('walletBalance');
+  const toggleBtn = document.getElementById('toggleBalanceBtn');
+  if (!walletBalanceElement) return;
+  
+  if (isBalanceVisible) {
+    walletBalanceElement.textContent = formatCurrency(currentWalletBalance);
+    if (toggleBtn) {
+      toggleBtn.querySelector('.eye-open').style.display = 'block';
+      toggleBtn.querySelector('.eye-closed').style.display = 'none';
+    }
+  } else {
+    walletBalanceElement.textContent = '***';
+    if (toggleBtn) {
+      toggleBtn.querySelector('.eye-open').style.display = 'none';
+      toggleBtn.querySelector('.eye-closed').style.display = 'block';
+    }
+  }
+}
+
 // Load transactions
-function loadTransactions() {
+async function loadTransactions() {
   const transactionsList = document.getElementById('transactionsList');
   
   if (transactionsList) {
-    const transactions = getTransactions();
+    const transactions = await getTransactions();
+    const user = await getUser();
     
     if (transactions.length === 0) {
       transactionsList.innerHTML = `
@@ -68,21 +88,31 @@ function loadTransactions() {
     }
     
     let transactionsHTML = '';
-    const recentTransactions = transactions.slice(0, 5); // Show only the latest 5
+    const recentTransactions = transactions.slice(0, 5); // Show latest 5
     
     recentTransactions.forEach(transaction => {
-      const isCredit = transaction.type === 'credit';
+      // If user is sender, it's a debit. If user is receiver, it's a credit.
+      // If add_money, sender_id is user, but it's a credit (or we just check transaction_type)
+      
+      let isCredit = false;
+      if (transaction.transaction_type === 'add_money') {
+        isCredit = true;
+      } else if (transaction.receiver_id === user.id) {
+        isCredit = true;
+      }
+      
+      const typeClass = isCredit ? 'credit' : 'debit';
       
       transactionsHTML += `
         <div class="transaction-item">
-          <div class="transaction-icon ${transaction.type}">
+          <div class="transaction-icon ${typeClass}">
             ${isCredit ? '+' : '-'}
           </div>
           <div class="transaction-details">
             <div class="transaction-title">${transaction.description}</div>
-            <div class="transaction-date">${formatDateTime(transaction.timestamp)}</div>
+            <div class="transaction-date">${formatDateTime(transaction.created_at)}</div>
           </div>
-          <div class="transaction-amount ${transaction.type}">
+          <div class="transaction-amount ${typeClass}">
             ${isCredit ? '+' : '-'} ₹${formatCurrency(transaction.amount)}
           </div>
         </div>
@@ -109,7 +139,7 @@ function initAddMoneyModal() {
 }
 
 // Handle Add Money form submission
-function handleAddMoney(e) {
+async function handleAddMoney(e) {
   e.preventDefault();
   
   const addAmount = document.getElementById('addAmount').value;
@@ -121,48 +151,36 @@ function handleAddMoney(e) {
   }
   
   // Get current wallet balance
-  const currentBalance = getWalletBalance();
+  const currentBalance = await getWalletBalance();
   const newBalance = currentBalance + parseFloat(addAmount);
   
   // Update wallet balance
-  updateWalletBalance(newBalance);
+  await updateWalletBalance(newBalance);
   
   // Add transaction
-  const transaction = {
-    id: generateTransactionId(),
-    type: 'credit',
-    amount: parseFloat(addAmount),
-    description: `Added money via ${getPaymentMethodName(paymentMethod)}`,
-    timestamp: new Date().toISOString()
-  };
-  
-  addTransaction(transaction);
+  await addTransaction(
+    parseFloat(addAmount), 
+    'add_money', 
+    `Added money via ${getPaymentMethodName(paymentMethod)}`
+  );
   
   // Close modal
   const addMoneyModal = document.getElementById('addMoneyModal');
   addMoneyModal.style.display = 'none';
   
-  // Show notification
   showNotification(`Added ₹${formatCurrency(addAmount)} successfully`);
   
-  // Reload wallet data
-  loadWalletData();
-  
-  // Reload transactions
-  loadTransactions();
+  // Reload UI
+  await loadWalletData();
+  await loadTransactions();
 }
 
-// Get payment method name
 function getPaymentMethodName(method) {
   switch (method) {
-    case 'upi':
-      return 'UPI';
-    case 'card':
-      return 'Card';
-    case 'netbanking':
-      return 'Net Banking';
-    default:
-      return method;
+    case 'upi': return 'UPI';
+    case 'card': return 'Card';
+    case 'netbanking': return 'Net Banking';
+    default: return method;
   }
 }
 
@@ -182,7 +200,7 @@ function initSendMoneyModal() {
 }
 
 // Handle Send Money form submission
-function handleSendMoney(e) {
+async function handleSendMoney(e) {
   e.preventDefault();
   
   const recipientMobile = document.getElementById('recipientMobile').value.trim();
@@ -190,7 +208,7 @@ function handleSendMoney(e) {
   const sendNote = document.getElementById('sendNote').value.trim();
   
   if (!recipientMobile) {
-    showNotification('Please enter recipient mobile number or UPI ID', 'error');
+    showNotification('Please enter recipient mobile number', 'error');
     return;
   }
   
@@ -199,40 +217,59 @@ function handleSendMoney(e) {
     return;
   }
   
-  // Get current wallet balance
-  const currentBalance = getWalletBalance();
-  
+  const currentBalance = await getWalletBalance();
   if (parseFloat(sendAmount) > currentBalance) {
     showNotification('Insufficient balance', 'error');
     return;
   }
   
-  const newBalance = currentBalance - parseFloat(sendAmount);
+  // Lookup receiver by phone or UPI ID
+  let query = supabaseClient.from('profiles').select('id, wallet_balance');
+  if (recipientMobile.includes('@')) {
+    query = query.eq('upi_id', recipientMobile);
+  } else {
+    query = query.eq('phone', recipientMobile);
+  }
   
-  // Update wallet balance
-  updateWalletBalance(newBalance);
+  const { data: receiverData, error: receiverError } = await query.maybeSingle();
+    
+  if (receiverError || !receiverData) {
+    showNotification('user/account not found', 'error', 'top-center');
+    return;
+  }
   
-  // Add transaction
-  const transaction = {
-    id: generateTransactionId(),
-    type: 'debit',
-    amount: parseFloat(sendAmount),
-    description: `Sent to ${recipientMobile}${sendNote ? ` - ${sendNote}` : ''}`,
-    timestamp: new Date().toISOString()
-  };
+  const user = await getUser();
+  if (receiverData.id === user.id) {
+    showNotification('Cannot send money to yourself', 'error');
+    return;
+  }
   
-  addTransaction(transaction);
+  // Debit sender
+  const newSenderBalance = currentBalance - parseFloat(sendAmount);
+  await updateWalletBalance(newSenderBalance);
+  
+  // Credit receiver
+  const newReceiverBalance = parseFloat(receiverData.wallet_balance) + parseFloat(sendAmount);
+  await supabaseClient
+    .from('profiles')
+    .update({ wallet_balance: newReceiverBalance })
+    .eq('id', receiverData.id);
+  
+  // Add transaction record
+  await addTransaction(
+    parseFloat(sendAmount), 
+    'peer_to_peer', 
+    `Sent to ${recipientMobile}${sendNote ? ` - ${sendNote}` : ''}`,
+    receiverData.id
+  );
   
   // Close modal
   const sendMoneyModal = document.getElementById('sendMoneyModal');
   sendMoneyModal.style.display = 'none';
   
-  // Show notification
   showNotification(`Sent ₹${formatCurrency(sendAmount)} successfully`);
   
-  // Reload wallet data
-  loadWalletData();
-  
-  // Reload transactions
-  loadTransactions();
+  // Reload UI
+  await loadWalletData();
+  await loadTransactions();
 }

@@ -1,23 +1,17 @@
 /**
- * Utility functions for the PayMoney application
+ * Utility functions for the PayMoney application (Supabase Integrated)
  */
 
-// Local storage keys
-const STORAGE_KEYS = {
-  USER: 'paymoney_user',
-  WALLET: 'paymoney_wallet',
-  TRANSACTIONS: 'paymoney_transactions',
-  BANKS: 'paymoney_banks',
-  UPI: 'paymoney_upi',
-  CARDS: 'paymoney_cards',
-  PROFILE: 'paymoney_profile'
-};
-
 // Show notification
-function showNotification(message, type = 'success') {
+function showNotification(message, type = 'success', position = '') {
   const notification = document.getElementById('notification');
+  if(!notification) return;
   notification.textContent = message;
-  notification.className = `notification ${type} show`;
+  notification.className = `notification ${type}`;
+  if (position) {
+    notification.classList.add(position);
+  }
+  notification.classList.add('show');
   
   setTimeout(() => {
     notification.classList.remove('show');
@@ -46,25 +40,39 @@ function formatDateTime(date) {
   return `${formatDate(date)} at ${formatTime(date)}`;
 }
 
-// Generate transaction ID
+// Generate transaction ID (Local mock, optionally we can use DB uuid)
 function generateTransactionId() {
   return 'TXN' + Date.now() + Math.floor(Math.random() * 1000);
 }
 
-// Get user from local storage
-function getUser() {
-  const user = localStorage.getItem(STORAGE_KEYS.USER);
-  return user ? JSON.parse(user) : null;
+// Get user from local session and database
+async function getUser() {
+  const userId = localStorage.getItem('paymoney_user_id');
+  if (!userId) return null;
+  
+  const { data, error } = await supabaseClient
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+    
+  if (error || !data) {
+    localStorage.removeItem('paymoney_user_id');
+    return null;
+  }
+  return data;
 }
 
 // Check if user is logged in
-function isLoggedIn() {
-  return !!getUser();
+async function isLoggedIn() {
+  const user = await getUser();
+  return !!user;
 }
 
 // Redirect if not logged in
-function requireAuth() {
-  if (!isLoggedIn()) {
+async function requireAuth() {
+  const loggedIn = await isLoggedIn();
+  if (!loggedIn) {
     window.location.href = 'login.html';
     return false;
   }
@@ -72,103 +80,90 @@ function requireAuth() {
 }
 
 // Redirect if already logged in
-function redirectIfLoggedIn() {
-  if (isLoggedIn()) {
+async function redirectIfLoggedIn() {
+  const loggedIn = await isLoggedIn();
+  if (loggedIn) {
     window.location.href = 'dashboard.html';
     return true;
   }
   return false;
 }
 
+// Get user profile from Supabase
+async function getProfile() {
+  const user = await getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabaseClient
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+    
+  if (error) {
+    console.error('Error fetching profile:', error);
+    return null;
+  }
+  return data;
+}
+
 // Get wallet balance
-function getWalletBalance() {
-  const wallet = localStorage.getItem(STORAGE_KEYS.WALLET);
-  return wallet ? JSON.parse(wallet).balance : 10000; // Default balance for demo
+async function getWalletBalance() {
+  const profile = await getProfile();
+  return profile ? parseFloat(profile.wallet_balance) : 0;
 }
 
 // Update wallet balance
-function updateWalletBalance(amount) {
-  const wallet = {
-    balance: amount,
-    lastUpdated: new Date().toISOString()
-  };
-  localStorage.setItem(STORAGE_KEYS.WALLET, JSON.stringify(wallet));
+async function updateWalletBalance(newBalance) {
+  const user = await getUser();
+  if (!user) return;
+  
+  const { error } = await supabaseClient
+    .from('profiles')
+    .update({ wallet_balance: newBalance })
+    .eq('id', user.id);
+    
+  if (error) {
+    console.error('Error updating wallet:', error);
+  }
 }
 
 // Add transaction
-function addTransaction(transaction) {
-  const transactions = getTransactions();
-  transactions.unshift(transaction);
-  localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
+async function addTransaction(amount, type, description, receiverId = null) {
+  const user = await getUser();
+  if (!user) return;
+
+  const { error } = await supabaseClient
+    .from('transactions')
+    .insert([{
+      sender_id: user.id,
+      receiver_id: receiverId,
+      amount: amount,
+      transaction_type: type,
+      description: description
+    }]);
+
+  if (error) {
+    console.error('Error adding transaction:', error);
+  }
 }
 
 // Get transactions
-function getTransactions() {
-  const transactions = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-  return transactions ? JSON.parse(transactions) : [];
-}
+async function getTransactions() {
+  const user = await getUser();
+  if (!user) return [];
 
-// Get banks
-function getBanks() {
-  const banks = localStorage.getItem(STORAGE_KEYS.BANKS);
-  return banks ? JSON.parse(banks) : [];
-}
+  const { data, error } = await supabaseClient
+    .from('transactions')
+    .select('*')
+    .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+    .order('created_at', { ascending: false });
 
-// Add bank
-function addBank(bank) {
-  const banks = getBanks();
-  banks.push(bank);
-  localStorage.setItem(STORAGE_KEYS.BANKS, JSON.stringify(banks));
-}
-
-// Get UPI details
-function getUpiDetails() {
-  const upi = localStorage.getItem(STORAGE_KEYS.UPI);
-  return upi ? JSON.parse(upi) : null;
-}
-
-// Set UPI details
-function setUpiDetails(upiDetails) {
-  localStorage.setItem(STORAGE_KEYS.UPI, JSON.stringify(upiDetails));
-}
-
-// Get saved cards
-function getSavedCards() {
-  const cards = localStorage.getItem(STORAGE_KEYS.CARDS);
-  return cards ? JSON.parse(cards) : [];
-}
-
-// Add card
-function addCard(card) {
-  const cards = getSavedCards();
-  cards.push(card);
-  localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(cards));
-}
-
-// Get profile
-function getProfile() {
-  const profile = localStorage.getItem(STORAGE_KEYS.PROFILE);
-  if (profile) {
-    return JSON.parse(profile);
+  if (error) {
+    console.error('Error fetching transactions:', error);
+    return [];
   }
-  
-  // Default profile
-  const user = getUser();
-  return {
-    name: user ? user.name : 'User',
-    email: user ? user.email : '',
-    phone: user ? user.phone : '',
-    address: '',
-    city: '',
-    state: '',
-    pincode: '',
-    avatar: 'img/default-avatar.png'
-  };
-}
-
-// Update profile
-function updateProfile(profile) {
-  localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(profile));
+  return data;
 }
 
 // Handle mobile menu toggle
@@ -180,7 +175,6 @@ function initMobileMenu() {
     hamburger.addEventListener('click', () => {
       mobileMenu.classList.toggle('active');
       
-      // Toggle hamburger animation
       const bars = hamburger.querySelectorAll('.bar');
       bars[0].style.transform = mobileMenu.classList.contains('active') ? 'rotate(45deg) translate(5px, 5px)' : '';
       bars[1].style.opacity = mobileMenu.classList.contains('active') ? '0' : '1';
@@ -203,9 +197,9 @@ function initLogout() {
   }
 }
 
-function handleLogout(e) {
+async function handleLogout(e) {
   e.preventDefault();
-  localStorage.removeItem(STORAGE_KEYS.USER);
+  localStorage.removeItem('paymoney_user_id');
   showNotification('Logged out successfully');
   setTimeout(() => {
     window.location.href = 'login.html';
@@ -213,19 +207,19 @@ function handleLogout(e) {
 }
 
 // Update user info in header
-function updateUserInfo() {
+async function updateUserInfo() {
   const userName = document.getElementById('userName');
   const userAvatar = document.getElementById('userAvatar');
   
   if (userName || userAvatar) {
-    const profile = getProfile();
-    
-    if (userName) {
-      userName.textContent = profile.name;
-    }
-    
-    if (userAvatar) {
-      userAvatar.src = profile.avatar;
+    const profile = await getProfile();
+    if(profile) {
+      if (userName) {
+        userName.textContent = profile.full_name;
+      }
+      if (userAvatar) {
+        userAvatar.src = profile.avatar_url || 'img/default-avatar.png';
+      }
     }
   }
 }
@@ -235,7 +229,6 @@ function initModals() {
   const modals = document.querySelectorAll('.modal');
   const closeButtons = document.querySelectorAll('.close-modal');
   
-  // Close modal when clicking close button
   closeButtons.forEach(button => {
     button.addEventListener('click', () => {
       const modal = button.closest('.modal');
@@ -243,7 +236,6 @@ function initModals() {
     });
   });
   
-  // Close modal when clicking outside
   window.addEventListener('click', (event) => {
     modals.forEach(modal => {
       if (event.target === modal) {
@@ -254,108 +246,31 @@ function initModals() {
 }
 
 // Initialize common elements
-function initCommon() {
+async function initCommon() {
   initMobileMenu();
   initLogout();
-  updateUserInfo();
+  await updateUserInfo();
   initModals();
 }
 
-// Generate a random string for IDs
-function generateRandomString(length = 8) {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length));
-  }
-  return result;
-}
-
-// Mask credit card number
-function maskCardNumber(number) {
-  return number.slice(0, 4) + ' **** **** ' + number.slice(-4);
-}
-
-// Validate email
+// Utility formatting
 function validateEmail(email) {
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return re.test(email);
 }
 
-// Validate phone number
 function validatePhone(phone) {
   const re = /^[0-9]{10}$/;
   return re.test(phone);
 }
 
-// Validate password strength
-function checkPasswordStrength(password) {
-  let strength = 0;
-  
-  if (password.length >= 8) strength += 1;
-  if (/[A-Z]/.test(password)) strength += 1;
-  if (/[a-z]/.test(password)) strength += 1;
-  if (/[0-9]/.test(password)) strength += 1;
-  if (/[^A-Za-z0-9]/.test(password)) strength += 1;
-  
-  return strength;
+// Hash a password using SHA-256
+async function hashPassword(password) {
+  const msgUint8 = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
 }
 
-// Update password strength meter
-function updatePasswordStrengthMeter(password, meterElement, textElement) {
-  const strength = checkPasswordStrength(password);
-  let width = '0%';
-  let color = '';
-  let text = '';
-  
-  switch (strength) {
-    case 0:
-      width = '0%';
-      color = '';
-      text = 'Password strength';
-      break;
-    case 1:
-      width = '20%';
-      color = 'var(--error-color)';
-      text = 'Very weak';
-      break;
-    case 2:
-      width = '40%';
-      color = 'var(--error-color)';
-      text = 'Weak';
-      break;
-    case 3:
-      width = '60%';
-      color = 'var(--warning-color)';
-      text = 'Medium';
-      break;
-    case 4:
-      width = '80%';
-      color = 'var(--success-color)';
-      text = 'Strong';
-      break;
-    case 5:
-      width = '100%';
-      color = 'var(--success-color)';
-      text = 'Very strong';
-      break;
-  }
-  
-  meterElement.style.width = width;
-  meterElement.style.backgroundColor = color;
-  textElement.textContent = text;
-}
-
-// Load external script
-function loadScript(url) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = url;
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-}
-
-// Initialize page when DOM is ready
 document.addEventListener('DOMContentLoaded', initCommon);

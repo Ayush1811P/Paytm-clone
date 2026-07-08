@@ -311,3 +311,12 @@
     gap: var(--spacing-lg);
   }
 }
+
+@media (min-width: 769px) {
+  .hamburger-menu {
+    display: none !important;
+  }
+  .mobile-menu {
+    display: none !important;
+  }
+}

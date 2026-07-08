@@ -1,22 +1,16 @@
 /**
- * UPI functionality for the PayMoney application
+ * UPI functionality for the PayMoney application (Supabase Integrated)
  */
 
-// Initialize UPI page
-document.addEventListener('DOMContentLoaded', function() {
-  // Require authentication
-  if (!requireAuth()) return;
+let pendingPayment = null;
+
+document.addEventListener('DOMContentLoaded', async function() {
+  if (!(await requireAuth())) return;
   
-  // Load UPI status
-  loadUpiStatus();
+  await loadUpiStatus();
+  await loadLinkedBanks();
+  await loadUpiTransactions();
   
-  // Load linked banks
-  loadLinkedBanks();
-  
-  // Load UPI transactions
-  loadUpiTransactions();
-  
-  // Initialize link bank button
   const linkBankBtn = document.getElementById('linkBankBtn');
   if (linkBankBtn) {
     linkBankBtn.addEventListener('click', () => {
@@ -24,24 +18,42 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // Initialize link bank form
   const linkBankForm = document.getElementById('linkBankForm');
   if (linkBankForm) {
     linkBankForm.addEventListener('submit', handleLinkBank);
   }
   
-  // Initialize UPI setup button
   const setupUpiBtn = document.getElementById('setupUpiBtn');
   if (setupUpiBtn) {
-    setupUpiBtn.addEventListener('click', () => {
-      document.getElementById('setupUpiModal').style.display = 'block';
+    setupUpiBtn.addEventListener('click', async () => {
+      const user = await getUser();
+      const { data: banks } = await supabaseClient
+        .from('bank_accounts')
+        .select('*')
+        .eq('user_id', user.id);
+        
+      if (!banks || banks.length === 0) {
+        showNotification('Please link a bank account first', 'error');
+        document.getElementById('linkBankModal').style.display = 'block';
+      } else {
+        showSetupStep(2);
+        document.getElementById('setupUpiModal').style.display = 'block';
+      }
     });
   }
   
-  // Initialize UPI setup forms
   const setupBankForm = document.getElementById('setupBankForm');
   if (setupBankForm) {
-    setupBankForm.addEventListener('submit', handleSetupBank);
+    setupBankForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const accountNumber = document.getElementById('setupAccountNumber').value.trim();
+      const ifscCode = document.getElementById('setupIfscCode').value.trim().toUpperCase();
+      
+      const linked = await linkBankAccount(accountNumber, ifscCode, 'Bank');
+      if (linked) {
+        showSetupStep(2);
+      }
+    });
   }
   
   const createUpiForm = document.getElementById('createUpiForm');
@@ -49,125 +61,124 @@ document.addEventListener('DOMContentLoaded', function() {
     createUpiForm.addEventListener('submit', handleCreateUpi);
   }
   
-  // Initialize complete setup button
   const completeSetupBtn = document.getElementById('completeSetupBtn');
   if (completeSetupBtn) {
-    completeSetupBtn.addEventListener('click', handleCompleteSetup);
+    completeSetupBtn.addEventListener('click', () => {
+      document.getElementById('setupUpiModal').style.display = 'none';
+      loadUpiStatus();
+    });
   }
   
-  // Initialize send UPI button
   const sendUpiBtn = document.getElementById('sendUpiBtn');
   if (sendUpiBtn) {
     sendUpiBtn.addEventListener('click', () => {
-      initSendUpiModal();
       document.getElementById('sendUpiModal').style.display = 'block';
     });
   }
   
-  // Initialize copy UPI button
-  const copyUpiBtn = document.getElementById('copyUpiBtn');
-  if (copyUpiBtn) {
-    copyUpiBtn.addEventListener('click', () => {
-      const upiId = document.getElementById('upiIdDisplay').textContent;
-      navigator.clipboard.writeText(upiId).then(() => {
-        showNotification('UPI ID copied to clipboard');
-      });
-    });
+  const sendUpiForm = document.getElementById('sendUpiForm');
+  if (sendUpiForm) {
+    sendUpiForm.addEventListener('submit', handleSendUpi);
+  }
+  
+  const confirmPinBtn = document.getElementById('confirmPinBtn');
+  if (confirmPinBtn) {
+    confirmPinBtn.addEventListener('click', handleConfirmPinPayment);
   }
 });
 
-// Load UPI status
-function loadUpiStatus() {
+function showSetupStep(stepNumber) {
+  const steps = document.querySelectorAll('.setup-step');
+  steps.forEach(step => {
+    if (parseInt(step.dataset.step) === stepNumber) {
+      step.classList.add('active');
+    } else {
+      step.classList.remove('active');
+    }
+  });
+}
+
+async function loadUpiStatus() {
+  const profile = await getProfile();
+  
   const noUpiAccount = document.getElementById('noUpiAccount');
   const upiAccountSection = document.getElementById('upiAccountSection');
   const upiIdDisplay = document.getElementById('upiIdDisplay');
   
-  const upiDetails = getUpiDetails();
-  
-  if (upiDetails) {
-    // User has UPI account
+  if (profile && profile.upi_id) {
     if (noUpiAccount) noUpiAccount.classList.add('hidden');
     if (upiAccountSection) upiAccountSection.classList.remove('hidden');
-    if (upiIdDisplay) upiIdDisplay.textContent = upiDetails.upiId;
+    if (upiIdDisplay) upiIdDisplay.textContent = profile.upi_id;
   } else {
-    // User doesn't have UPI account
     if (noUpiAccount) noUpiAccount.classList.remove('hidden');
     if (upiAccountSection) upiAccountSection.classList.add('hidden');
   }
 }
 
-// Load linked banks
-function loadLinkedBanks() {
+async function loadLinkedBanks() {
+  const user = await getUser();
+  const { data: banks } = await supabaseClient
+    .from('bank_accounts')
+    .select('*')
+    .eq('user_id', user.id);
+    
   const noBankAccounts = document.getElementById('noBankAccounts');
   const bankAccountsList = document.getElementById('bankAccountsList');
   
-  const banks = getBanks();
-  
-  if (banks.length > 0) {
-    // User has linked banks
+  if (banks && banks.length > 0) {
     if (noBankAccounts) noBankAccounts.classList.add('hidden');
     if (bankAccountsList) {
       bankAccountsList.classList.remove('hidden');
       
       let banksHTML = '';
-      
       banks.forEach(bank => {
         banksHTML += `
           <div class="bank-account">
-            <div class="bank-icon">${bank.name.charAt(0)}</div>
+            <div class="bank-icon">${bank.bank_name.charAt(0)}</div>
             <div class="bank-details">
-              <div class="bank-name">${bank.name}</div>
-              <div class="bank-account-number">A/C: ${maskAccountNumber(bank.accountNumber)}</div>
+              <div class="bank-name">${bank.bank_name}</div>
+              <div class="bank-account-number">A/C: ${bank.account_number.slice(-4).padStart(bank.account_number.length, 'X')}</div>
             </div>
           </div>
         `;
       });
-      
       bankAccountsList.innerHTML = banksHTML;
     }
   } else {
-    // User doesn't have linked banks
     if (noBankAccounts) noBankAccounts.classList.remove('hidden');
     if (bankAccountsList) bankAccountsList.classList.add('hidden');
   }
 }
 
-// Load UPI transactions
-function loadUpiTransactions() {
+async function loadUpiTransactions() {
+  const transactions = await getTransactions();
   const upiTransactionsList = document.getElementById('upiTransactionsList');
-  
   if (!upiTransactionsList) return;
   
-  const transactions = getTransactions().filter(tx => 
-    tx.description.includes('UPI') || tx.description.includes('Bank Transfer')
-  );
+  const upiTxns = transactions.filter(tx => tx.description.includes('UPI') || tx.transaction_type === 'peer_to_peer');
   
-  if (transactions.length === 0) {
-    upiTransactionsList.innerHTML = `
-      <div class="empty-transactions">
-        <p>No UPI transactions yet</p>
-      </div>
-    `;
+  if (upiTxns.length === 0) {
+    upiTransactionsList.innerHTML = `<div class="empty-transactions"><p>No UPI transactions yet</p></div>`;
     return;
   }
   
   let transactionsHTML = '';
+  const user = await getUser();
   
-  transactions.forEach(transaction => {
-    const isCredit = transaction.type === 'credit';
+  upiTxns.forEach(tx => {
+    let isCredit = false;
+    if (tx.receiver_id === user.id) isCredit = true;
+    
+    const typeClass = isCredit ? 'credit' : 'debit';
     
     transactionsHTML += `
       <div class="transaction-item">
-        <div class="transaction-icon ${transaction.type}">
-          ${isCredit ? '+' : '-'}
-        </div>
+        <div class="transaction-icon ${typeClass}">${isCredit ? '+' : '-'}</div>
         <div class="transaction-details">
-          <div class="transaction-title">${transaction.description}</div>
-          <div class="transaction-date">${formatDateTime(transaction.timestamp)}</div>
+          <div class="transaction-title">${tx.description}</div>
+          <div class="transaction-date">${formatDateTime(tx.created_at)}</div>
         </div>
-        <div class="transaction-amount ${transaction.type}">
-          ${isCredit ? '+' : '-'} ₹${formatCurrency(transaction.amount)}
-        </div>
+        <div class="transaction-amount ${typeClass}">${isCredit ? '+' : '-'} ₹${formatCurrency(tx.amount)}</div>
       </div>
     `;
   });
@@ -175,327 +186,234 @@ function loadUpiTransactions() {
   upiTransactionsList.innerHTML = transactionsHTML;
 }
 
-// Mask account number
-function maskAccountNumber(accountNumber) {
-  if (!accountNumber) return '';
+async function linkBankAccount(accountNumber, ifscCode, bankName) {
+  if (!accountNumber || !ifscCode) {
+    showNotification('Please fill in all fields', 'error');
+    return false;
+  }
   
-  const len = accountNumber.length;
-  if (len <= 4) return accountNumber;
-  
-  return 'XXXX' + accountNumber.slice(-4);
+  const user = await getUser();
+  const { error } = await supabaseClient
+    .from('bank_accounts')
+    .insert([{
+      user_id: user.id,
+      bank_name: bankName || 'Bank',
+      account_number: accountNumber,
+      ifsc_code: ifscCode
+    }]);
+    
+  if (error) {
+    showNotification('Failed to link bank, account number might already be in use.', 'error');
+    return false;
+  } else {
+    showNotification('Bank account linked successfully');
+    await loadLinkedBanks();
+    return true;
+  }
 }
 
-// Handle link bank form submission
-function handleLinkBank(e) {
+async function handleLinkBank(e) {
   e.preventDefault();
-  
   const accountNumber = document.getElementById('accountNumber').value.trim();
   const ifscCode = document.getElementById('ifscCode').value.trim().toUpperCase();
-  const accountHolderName = document.getElementById('accountHolderName').value.trim();
-  const bankMobileNumber = document.getElementById('bankMobileNumber').value.trim();
   
-  // Validation
-  if (!accountNumber || !ifscCode || !accountHolderName || !bankMobileNumber) {
-    showNotification('Please fill in all fields', 'error');
-    return;
-  }
-  
-  // Extract bank name from IFSC code
-  const bankName = getBankNameFromIFSC(ifscCode);
-  
-  // Add bank
-  const bank = {
-    id: generateRandomString(),
-    name: bankName,
-    accountNumber,
-    ifscCode,
-    accountHolderName,
-    mobileNumber: bankMobileNumber,
-    linkedAt: new Date().toISOString()
-  };
-  
-  addBank(bank);
-  
-  // Close modal
-  const linkBankModal = document.getElementById('linkBankModal');
-  linkBankModal.style.display = 'none';
-  
-  // Show notification
-  showNotification('Bank account linked successfully');
-  
-  // Reload linked banks
-  loadLinkedBanks();
-}
-
-// Get bank name from IFSC code
-function getBankNameFromIFSC(ifscCode) {
-  // In a real app, this would be an API call or lookup
-  // For demo, extract first 4 characters as bank code and map to bank name
-  const bankCode = ifscCode.slice(0, 4);
-  
-  const bankCodes = {
-    'SBIN': 'State Bank of India',
-    'HDFC': 'HDFC Bank',
-    'ICIC': 'ICICI Bank',
-    'PUNB': 'Punjab National Bank',
-    'UTIB': 'Axis Bank',
-    'IOBA': 'Indian Overseas Bank',
-    'CNRB': 'Canara Bank',
-    'BARB': 'Bank of Baroda'
-  };
-  
-  return bankCodes[bankCode] || 'Bank';
-}
-
-// Handle setup bank form submission
-function handleSetupBank(e) {
-  e.preventDefault();
-  
-  const accountNumber = document.getElementById('setupAccountNumber').value.trim();
-  const ifscCode = document.getElementById('setupIfscCode').value.trim().toUpperCase();
-  const accountHolderName = document.getElementById('setupAccountHolderName').value.trim();
-  const bankMobileNumber = document.getElementById('setupBankMobileNumber').value.trim();
-  
-  // Validation
-  if (!accountNumber || !ifscCode || !accountHolderName || !bankMobileNumber) {
-    showNotification('Please fill in all fields', 'error');
-    return;
-  }
-  
-  // Extract bank name from IFSC code
-  const bankName = getBankNameFromIFSC(ifscCode);
-  
-  // Add bank
-  const bank = {
-    id: generateRandomString(),
-    name: bankName,
-    accountNumber,
-    ifscCode,
-    accountHolderName,
-    mobileNumber: bankMobileNumber,
-    linkedAt: new Date().toISOString()
-  };
-  
-  addBank(bank);
-  
-  // Go to next step
-  const setupSteps = document.querySelectorAll('.setup-step');
-  setupSteps[0].classList.remove('active');
-  setupSteps[1].classList.add('active');
-  
-  // Show notification
-  showNotification('Bank account linked successfully');
-}
-
-// Handle create UPI form submission
-function handleCreateUpi(e) {
-  e.preventDefault();
-  
-  const upiPrefix = document.getElementById('upiPrefix').value.trim().toLowerCase();
-  const upiPin = document.getElementById('setupUpiPin').value;
-  const confirmUpiPin = document.getElementById('confirmUpiPin').value;
-  
-  // Validation
-  if (!upiPrefix) {
-    showNotification('Please enter a UPI username', 'error');
-    return;
-  }
-  
-  if (!upiPin || !confirmUpiPin) {
-    showNotification('Please enter UPI PIN', 'error');
-    return;
-  }
-  
-  if (upiPin !== confirmUpiPin) {
-    showNotification('UPI PINs do not match', 'error');
-    return;
-  }
-  
-  if (upiPin.length !== 6 || !/^\d+$/.test(upiPin)) {
-    showNotification('UPI PIN must be 6 digits', 'error');
-    return;
-  }
-  
-  // Create UPI ID
-  const upiId = `${upiPrefix}@paymoney`;
-  
-  // Save UPI details
-  const upiDetails = {
-    upiId,
-    pin: upiPin, // In a real app, this would be securely stored or not stored at all
-    createdAt: new Date().toISOString(),
-    status: 'active'
-  };
-  
-  setUpiDetails(upiDetails);
-  
-  // Show UPI ID in next step
-  const newUpiId = document.getElementById('newUpiId');
-  if (newUpiId) newUpiId.textContent = upiId;
-  
-  // Go to next step
-  const setupSteps = document.querySelectorAll('.setup-step');
-  setupSteps[1].classList.remove('active');
-  setupSteps[2].classList.add('active');
-  
-  // Show notification
-  showNotification('UPI ID created successfully');
-}
-
-// Handle complete setup
-function handleCompleteSetup() {
-  // Close modal
-  const setupUpiModal = document.getElementById('setupUpiModal');
-  setupUpiModal.style.display = 'none';
-  
-  // Show notification
-  showNotification('UPI setup completed successfully');
-  
-  // Reload UPI status
-  loadUpiStatus();
-}
-
-// Initialize send UPI modal
-function initSendUpiModal() {
-  const sendUpiForm = document.getElementById('sendUpiForm');
-  const upiPaymentSources = document.getElementById('upiPaymentSources');
-  
-  if (sendUpiForm) {
-    sendUpiForm.addEventListener('submit', handleSendUpi);
-  }
-  
-  if (upiPaymentSources) {
-    // Populate payment sources
-    const banks = getBanks();
-    const upiDetails = getUpiDetails();
+  const linked = await linkBankAccount(accountNumber, ifscCode, 'Bank');
+  if (linked) {
+    document.getElementById('linkBankModal').style.display = 'none';
     
-    if (banks.length > 0 && upiDetails) {
-      let sourcesHTML = '';
-      
-      banks.forEach((bank, index) => {
-        sourcesHTML += `
-          <div class="payment-source ${index === 0 ? 'selected' : ''}" data-id="${bank.id}">
-            <input type="radio" name="paymentSource" id="source${bank.id}" class="payment-source-radio" ${index === 0 ? 'checked' : ''}>
-            <div class="payment-source-icon">${bank.name.charAt(0)}</div>
-            <div class="payment-source-details">
-              <div class="payment-source-name">${bank.name}</div>
-              <div class="payment-source-info">A/C: ${maskAccountNumber(bank.accountNumber)}</div>
-            </div>
-          </div>
-        `;
-      });
-      
-      upiPaymentSources.innerHTML = sourcesHTML;
-      
-      // Add click event to payment sources
-      const paymentSources = document.querySelectorAll('.payment-source');
-      paymentSources.forEach(source => {
-        source.addEventListener('click', () => {
-          // Remove selected class from all sources
-          paymentSources.forEach(s => s.classList.remove('selected'));
-          
-          // Add selected class to clicked source
-          source.classList.add('selected');
-          
-          // Check radio
-          const radio = source.querySelector('input[type="radio"]');
-          radio.checked = true;
-        });
-      });
+    const profile = await getProfile();
+    if (!profile || !profile.upi_id) {
+      showSetupStep(2);
+      document.getElementById('setupUpiModal').style.display = 'block';
     }
   }
 }
 
-// Handle send UPI form submission
-function handleSendUpi(e) {
+async function handleCreateUpi(e) {
+  e.preventDefault();
+  const upiPrefix = document.getElementById('upiPrefix').value.trim().toLowerCase();
+  const setupUpiPin = document.getElementById('setupUpiPin').value;
+  const confirmUpiPin = document.getElementById('confirmUpiPin').value;
+  
+  if (!upiPrefix || !setupUpiPin || !confirmUpiPin) {
+    showNotification('Please fill in all fields', 'error');
+    return;
+  }
+  
+  if (setupUpiPin !== confirmUpiPin) {
+    showNotification('UPI PINs do not match', 'error');
+    return;
+  }
+  
+  if (!/^[0-9]{4}$/.test(setupUpiPin)) {
+    showNotification('UPI PIN must be exactly 4 digits', 'error');
+    return;
+  }
+  
+  const upiId = `${upiPrefix}@paymoney`;
+  const user = await getUser();
+  
+  // Check if UPI ID already exists
+  const { data: existingProfile } = await supabaseClient
+    .from('profiles')
+    .select('id')
+    .eq('upi_id', upiId)
+    .maybeSingle();
+    
+  if (existingProfile && existingProfile.id !== user.id) {
+    showNotification('UPI ID already taken', 'error');
+    return;
+  }
+  
+  const hashedPin = await hashPassword(setupUpiPin);
+  
+  const { error } = await supabaseClient
+    .from('profiles')
+    .update({ 
+      upi_id: upiId,
+      upi_pin: hashedPin
+    })
+    .eq('id', user.id);
+    
+  if (error) {
+    showNotification('Error creating UPI ID: ' + error.message, 'error');
+  } else {
+    showNotification('UPI ID created successfully');
+    
+    const newUpiId = document.getElementById('newUpiId');
+    if (newUpiId) newUpiId.textContent = upiId;
+    
+    showSetupStep(3);
+  }
+}
+
+async function handleSendUpi(e) {
   e.preventDefault();
   
   const recipientUpiId = document.getElementById('recipientUpiId').value.trim();
   const upiSendAmount = document.getElementById('upiSendAmount').value;
-  const upiSendNote = document.getElementById('upiSendNote').value.trim();
+  const note = document.getElementById('upiSendNote').value.trim();
   
-  // Validation
-  if (!recipientUpiId) {
-    showNotification('Please enter recipient UPI ID or mobile number', 'error');
-    return;
-  }
+  if (!recipientUpiId || !upiSendAmount) return;
   
-  if (!upiSendAmount || parseFloat(upiSendAmount) <= 0) {
-    showNotification('Please enter a valid amount', 'error');
-    return;
-  }
-  
-  // Get current wallet balance
-  const currentBalance = getWalletBalance();
-  
+  const currentBalance = await getWalletBalance();
   if (parseFloat(upiSendAmount) > currentBalance) {
     showNotification('Insufficient balance', 'error');
     return;
   }
   
-  // Show UPI PIN modal
-  const upiPinModal = document.getElementById('upiPinModal');
-  const sendUpiModal = document.getElementById('sendUpiModal');
-  const pinRecipient = document.getElementById('pinRecipient');
-  const pinAmount = document.getElementById('pinAmount');
-  
-  if (upiPinModal && pinRecipient && pinAmount) {
-    pinRecipient.textContent = recipientUpiId;
-    pinAmount.textContent = `₹${upiSendAmount}`;
-    
-    sendUpiModal.style.display = 'none';
-    upiPinModal.style.display = 'block';
-    
-    // Initialize UPI PIN form
-    const confirmPinBtn = document.getElementById('confirmPinBtn');
-    const upiPin = document.getElementById('upiPin');
-    
-    if (confirmPinBtn && upiPin) {
-      confirmPinBtn.addEventListener('click', () => {
-        const enteredPin = upiPin.value;
-        const upiDetails = getUpiDetails();
-        
-        if (!enteredPin) {
-          showNotification('Please enter UPI PIN', 'error');
-          return;
-        }
-        
-        // In a real app, PIN verification would be handled securely
-        if (enteredPin !== upiDetails.pin) {
-          showNotification('Invalid UPI PIN', 'error');
-          return;
-        }
-        
-        // Process payment
-        const newBalance = currentBalance - parseFloat(upiSendAmount);
-        updateWalletBalance(newBalance);
-        
-        // Add transaction
-        const transaction = {
-          id: generateTransactionId(),
-          type: 'debit',
-          amount: parseFloat(upiSendAmount),
-          description: `UPI Payment to ${recipientUpiId}${upiSendNote ? ` - ${upiSendNote}` : ''}`,
-          timestamp: new Date().toISOString()
-        };
-        
-        addTransaction(transaction);
-        
-        // Close modal
-        upiPinModal.style.display = 'none';
-        
-        // Show notification
-        showNotification(`Payment of ₹${formatCurrency(upiSendAmount)} successful`);
-        
-        // Reload UPI transactions
-        loadUpiTransactions();
-        
-        // Clear form
-        document.getElementById('recipientUpiId').value = '';
-        document.getElementById('upiSendAmount').value = '';
-        document.getElementById('upiSendNote').value = '';
-        document.getElementById('upiPin').value = '';
-      });
-    }
+  // Lookup receiver by UPI ID or Mobile Number
+  let query = supabaseClient.from('profiles').select('id, wallet_balance, upi_id');
+  if (recipientUpiId.includes('@')) {
+    query = query.eq('upi_id', recipientUpiId);
+  } else {
+    query = query.eq('phone', recipientUpiId);
   }
+  
+  const { data: receiverData, error: receiverError } = await query.maybeSingle();
+    
+  if (receiverError || !receiverData) {
+    showNotification('user/account not found', 'error', 'top-center');
+    return;
+  }
+  
+  const user = await getUser();
+  if (receiverData.id === user.id) {
+    showNotification('Cannot send money to yourself', 'error');
+    return;
+  }
+  
+  // Save details to pending transaction
+  pendingPayment = {
+    receiverId: receiverData.id,
+    receiverUpiId: receiverData.upi_id || recipientUpiId,
+    amount: parseFloat(upiSendAmount),
+    note: note
+  };
+  
+  // Populate PIN modal
+  document.getElementById('pinRecipient').textContent = pendingPayment.receiverUpiId;
+  document.getElementById('pinAmount').textContent = '₹' + formatCurrency(pendingPayment.amount);
+  document.getElementById('upiPin').value = '';
+  
+  // Hide Send modal and show PIN modal
+  document.getElementById('sendUpiModal').style.display = 'none';
+  document.getElementById('upiPinModal').style.display = 'block';
+}
+
+async function handleConfirmPinPayment() {
+  if (!pendingPayment) return;
+  
+  const enteredPin = document.getElementById('upiPin').value;
+  if (!enteredPin || !/^[0-9]{4}$/.test(enteredPin)) {
+    showNotification('Please enter a valid 4-digit UPI PIN', 'error');
+    return;
+  }
+  
+  const confirmPinBtn = document.getElementById('confirmPinBtn');
+  confirmPinBtn.disabled = true;
+  confirmPinBtn.textContent = 'Processing...';
+  
+  const user = await getUser();
+  const hashedPin = await hashPassword(enteredPin);
+  
+  // Fetch sender's stored pin
+  const { data: senderProfile } = await supabaseClient
+    .from('profiles')
+    .select('upi_pin, wallet_balance')
+    .eq('id', user.id)
+    .single();
+    
+  if (!senderProfile || senderProfile.upi_pin !== hashedPin) {
+    showNotification('Incorrect UPI PIN', 'error');
+    confirmPinBtn.disabled = false;
+    confirmPinBtn.textContent = 'Confirm Payment';
+    document.getElementById('upiPin').value = '';
+    return;
+  }
+  
+  const currentBalance = parseFloat(senderProfile.wallet_balance);
+  if (pendingPayment.amount > currentBalance) {
+    showNotification('Insufficient balance', 'error');
+    document.getElementById('upiPinModal').style.display = 'none';
+    confirmPinBtn.disabled = false;
+    confirmPinBtn.textContent = 'Confirm Payment';
+    return;
+  }
+  
+  // Deduct sender balance
+  const newSenderBalance = currentBalance - pendingPayment.amount;
+  await updateWalletBalance(newSenderBalance);
+  
+  // Fetch receiver balance again to prevent race conditions
+  const { data: receiverProfile } = await supabaseClient
+    .from('profiles')
+    .select('wallet_balance')
+    .eq('id', pendingPayment.receiverId)
+    .single();
+    
+  // Credit receiver
+  const newReceiverBalance = parseFloat(receiverProfile.wallet_balance) + pendingPayment.amount;
+  await supabaseClient
+    .from('profiles')
+    .update({ wallet_balance: newReceiverBalance })
+    .eq('id', pendingPayment.receiverId);
+  
+  // Add transaction record
+  await addTransaction(
+    pendingPayment.amount, 
+    'peer_to_peer', 
+    `UPI Payment to ${pendingPayment.receiverUpiId}${pendingPayment.note ? ` - ${pendingPayment.note}` : ''}`,
+    pendingPayment.receiverId
+  );
+  
+  // Reset and hide
+  document.getElementById('upiPinModal').style.display = 'none';
+  showNotification(`Payment of ₹${formatCurrency(pendingPayment.amount)} successful`);
+  
+  confirmPinBtn.disabled = false;
+  confirmPinBtn.textContent = 'Confirm Payment';
+  pendingPayment = null;
+  
+  await loadUpiTransactions();
 }
