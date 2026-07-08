@@ -116,7 +116,29 @@ function initChatWidget() {
   const chatSendBtn = document.getElementById('chatSendBtn');
   const quickReplies = document.querySelectorAll('.quick-reply-btn');
   
+  const floatingChatBtn = document.getElementById('floatingChatBtn');
+  const closeChatBtn = document.getElementById('closeChatBtn');
+  const chatWidget = document.querySelector('.chat-widget');
+  
   if (!chatMessages || !chatInput || !chatSendBtn) return;
+  
+  // Mobile Floating Chat toggle
+  if (floatingChatBtn && chatWidget) {
+    floatingChatBtn.addEventListener('click', () => {
+      chatWidget.classList.add('active');
+      floatingChatBtn.style.display = 'none';
+      setTimeout(scrollToBottom, 100);
+    });
+  }
+  
+  if (closeChatBtn && chatWidget) {
+    closeChatBtn.addEventListener('click', () => {
+      chatWidget.classList.remove('active');
+      if (floatingChatBtn) {
+        floatingChatBtn.style.display = '';
+      }
+    });
+  }
   
   // Send message on click
   chatSendBtn.addEventListener('click', sendUserMessage);
