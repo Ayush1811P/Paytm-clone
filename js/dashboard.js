@@ -105,15 +105,13 @@ async function loadTransactions() {
       
       transactionsHTML += `
         <div class="transaction-item">
-          <div class="transaction-icon ${typeClass}">
-            ${isCredit ? '+' : '-'}
-          </div>
+          <div class="transaction-icon ${typeClass}"></div>
           <div class="transaction-details">
             <div class="transaction-title">${transaction.description}</div>
             <div class="transaction-date">${formatDateTime(transaction.created_at)}</div>
           </div>
           <div class="transaction-amount ${typeClass}">
-            ${isCredit ? '+' : '-'} ₹${formatCurrency(transaction.amount)}
+            ₹${formatCurrency(transaction.amount)}
           </div>
         </div>
       `;
@@ -192,8 +190,14 @@ async function handleAddMoney(e) {
   const addAmount = document.getElementById('addAmount').value;
   const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
   
-  if (!addAmount || parseFloat(addAmount) <= 0) {
+  const amountNum = parseFloat(addAmount);
+  if (!addAmount || isNaN(amountNum) || amountNum <= 0) {
     showNotification('Please enter a valid amount', 'error');
+    return;
+  }
+  
+  if (addAmount.includes('.') && addAmount.split('.')[1].length > 2) {
+    showNotification('Amount can have at most 2 decimal places', 'error');
     return;
   }
   
@@ -268,8 +272,14 @@ async function handleSendMoney(e) {
     return;
   }
   
-  if (!sendAmount || parseFloat(sendAmount) <= 0) {
+  const amountNum = parseFloat(sendAmount);
+  if (!sendAmount || isNaN(amountNum) || amountNum <= 0) {
     showNotification('Please enter a valid amount', 'error');
+    return;
+  }
+  
+  if (sendAmount.includes('.') && sendAmount.split('.')[1].length > 2) {
+    showNotification('Amount can have at most 2 decimal places', 'error');
     return;
   }
   

@@ -173,12 +173,12 @@ async function loadUpiTransactions() {
     
     transactionsHTML += `
       <div class="transaction-item">
-        <div class="transaction-icon ${typeClass}">${isCredit ? '+' : '-'}</div>
+        <div class="transaction-icon ${typeClass}"></div>
         <div class="transaction-details">
           <div class="transaction-title">${tx.description}</div>
           <div class="transaction-date">${formatDateTime(tx.created_at)}</div>
         </div>
-        <div class="transaction-amount ${typeClass}">${isCredit ? '+' : '-'} ₹${formatCurrency(tx.amount)}</div>
+        <div class="transaction-amount ${typeClass}">₹${formatCurrency(tx.amount)}</div>
       </div>
     `;
   });
@@ -296,7 +296,21 @@ async function handleSendUpi(e) {
   const upiSendAmount = document.getElementById('upiSendAmount').value;
   const note = document.getElementById('upiSendNote').value.trim();
   
-  if (!recipientUpiId || !upiSendAmount) return;
+  if (!recipientUpiId) {
+    showNotification('Please enter recipient info', 'error');
+    return;
+  }
+  
+  const amountNum = parseFloat(upiSendAmount);
+  if (!upiSendAmount || isNaN(amountNum) || amountNum <= 0) {
+    showNotification('Please enter a valid amount', 'error');
+    return;
+  }
+  
+  if (upiSendAmount.includes('.') && upiSendAmount.split('.')[1].length > 2) {
+    showNotification('Amount can have at most 2 decimal places', 'error');
+    return;
+  }
   
   const currentBalance = await getWalletBalance();
   if (parseFloat(upiSendAmount) > currentBalance) {
