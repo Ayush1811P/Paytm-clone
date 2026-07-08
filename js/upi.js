@@ -220,6 +220,8 @@ async function handleLinkBank(e) {
   const linked = await linkBankAccount(accountNumber, ifscCode, 'Bank');
   if (linked) {
     document.getElementById('linkBankModal').style.display = 'none';
+    const linkBankForm = document.getElementById('linkBankForm');
+    if (linkBankForm) linkBankForm.reset();
     
     const profile = await getProfile();
     if (!profile || !profile.upi_id) {
@@ -409,6 +411,9 @@ async function handleConfirmPinPayment() {
   
   // Reset and hide
   document.getElementById('upiPinModal').style.display = 'none';
+  const sendUpiForm = document.getElementById('sendUpiForm');
+  if (sendUpiForm) sendUpiForm.reset();
+  
   showNotification(`Payment of ₹${formatCurrency(pendingPayment.amount)} successful`);
   
   confirmPinBtn.disabled = false;

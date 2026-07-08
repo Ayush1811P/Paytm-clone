@@ -123,6 +123,42 @@ async function loadTransactions() {
   }
 }
 
+// Get add money cooldown status
+function getAddMoneyCooldown() {
+  const userId = localStorage.getItem('paymoney_user_id');
+  const storageKey = userId ? `lastAddMoneyTime_${userId}` : 'lastAddMoneyTime';
+  const lastAddMoneyTime = localStorage.getItem(storageKey);
+  
+  if (!lastAddMoneyTime) {
+    return { isLocked: false };
+  }
+  
+  const lastTime = parseInt(lastAddMoneyTime, 10);
+  const now = Date.now();
+  const timePassed = now - lastTime;
+  const cooldownDuration = 60 * 60 * 1000; // 1 hour in ms
+  
+  if (timePassed < cooldownDuration) {
+    const timeLeft = cooldownDuration - timePassed;
+    const minutesLeft = Math.floor(timeLeft / (60 * 1000));
+    const secondsLeft = Math.floor((timeLeft % (60 * 1000)) / 1000);
+    
+    let remainingMessage = '';
+    if (minutesLeft > 0) {
+      remainingMessage = `${minutesLeft}m ${secondsLeft}s`;
+    } else {
+      remainingMessage = `${secondsLeft}s`;
+    }
+    
+    return {
+      isLocked: true,
+      remainingMessage: remainingMessage
+    };
+  }
+  
+  return { isLocked: false };
+}
+
 // Initialize Add Money modal
 function initAddMoneyModal() {
   const addMoneyBtn = document.getElementById('addMoneyBtn');
@@ -131,6 +167,11 @@ function initAddMoneyModal() {
   
   if (addMoneyBtn && addMoneyModal && addMoneyForm) {
     addMoneyBtn.addEventListener('click', function() {
+      const cooldownInfo = getAddMoneyCooldown();
+      if (cooldownInfo.isLocked) {
+        showNotification(`You can only add money once per hour. Please try again in ${cooldownInfo.remainingMessage}.`, 'error');
+        return;
+      }
       addMoneyModal.style.display = 'block';
     });
     
@@ -141,6 +182,12 @@ function initAddMoneyModal() {
 // Handle Add Money form submission
 async function handleAddMoney(e) {
   e.preventDefault();
+  
+  const cooldownInfo = getAddMoneyCooldown();
+  if (cooldownInfo.isLocked) {
+    showNotification(`You can only add money once per hour. Please try again in ${cooldownInfo.remainingMessage}.`, 'error');
+    return;
+  }
   
   const addAmount = document.getElementById('addAmount').value;
   const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
@@ -164,9 +211,18 @@ async function handleAddMoney(e) {
     `Added money via ${getPaymentMethodName(paymentMethod)}`
   );
   
+  // Set cooldown
+  const userId = localStorage.getItem('paymoney_user_id');
+  const storageKey = userId ? `lastAddMoneyTime_${userId}` : 'lastAddMoneyTime';
+  localStorage.setItem(storageKey, Date.now().toString());
+  
   // Close modal
   const addMoneyModal = document.getElementById('addMoneyModal');
   addMoneyModal.style.display = 'none';
+  
+  // Reset form
+  const addMoneyForm = document.getElementById('addMoneyForm');
+  if (addMoneyForm) addMoneyForm.reset();
   
   showNotification(`Added ₹${formatCurrency(addAmount)} successfully`);
   
@@ -266,6 +322,10 @@ async function handleSendMoney(e) {
   // Close modal
   const sendMoneyModal = document.getElementById('sendMoneyModal');
   sendMoneyModal.style.display = 'none';
+  
+  // Reset form
+  const sendMoneyForm = document.getElementById('sendMoneyForm');
+  if (sendMoneyForm) sendMoneyForm.reset();
   
   showNotification(`Sent ₹${formatCurrency(sendAmount)} successfully`);
   
