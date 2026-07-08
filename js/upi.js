@@ -111,9 +111,11 @@ document.addEventListener('DOMContentLoaded', async function() {
   
   // 3. Require authentication and load async data
   if (!(await requireAuth())) return;
-  await loadUpiStatus();
-  await loadLinkedBanks();
-  await loadUpiTransactions();
+  await Promise.all([
+    loadUpiStatus(),
+    loadLinkedBanks(),
+    loadUpiTransactions()
+  ]);
 });
 
 function showSetupStep(stepNumber) {
@@ -324,6 +326,7 @@ async function handleCreateUpi(e) {
   if (error) {
     showNotification('Error creating UPI ID: ' + error.message, 'error');
   } else {
+    clearProfileCache();
     showNotification('UPI ID created successfully');
     
     const newUpiId = document.getElementById('newUpiId');

@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 });
 
 async function loadProfileData() {
-  const profile = await getProfile();
+  const profile = await getProfile(true);
   if (!profile) return;
   
   const profileName = document.getElementById('profileName');
@@ -273,6 +273,7 @@ async function handlePasswordChange(e) {
   if (error) {
     showNotification('Error changing password: ' + error.message, 'error');
   } else {
+    clearProfileCache();
     showNotification('Password updated successfully');
     document.getElementById('changePasswordForm').reset();
   }

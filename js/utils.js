@@ -2,6 +2,8 @@
  * Utility functions for the PayMoney application (Supabase Integrated)
  */
 
+let cachedProfile = null;
+
 // Show notification
 function showNotification(message, type = 'success', position = '') {
   const notification = document.getElementById('notification');
@@ -46,7 +48,15 @@ function generateTransactionId() {
 }
 
 // Get user from local session and database
-async function getUser() {
+async function getUser(forceRefresh = false) {
+  if (forceRefresh) {
+    cachedProfile = null;
+  }
+  
+  if (cachedProfile) {
+    return cachedProfile;
+  }
+  
   const userId = localStorage.getItem('paymoney_user_id');
   if (!userId) return null;
   
@@ -58,8 +68,11 @@ async function getUser() {
     
   if (error || !data) {
     localStorage.removeItem('paymoney_user_id');
+    cachedProfile = null;
     return null;
   }
+  
+  cachedProfile = data;
   return data;
 }
 
@@ -90,21 +103,13 @@ async function redirectIfLoggedIn() {
 }
 
 // Get user profile from Supabase
-async function getProfile() {
-  const user = await getUser();
-  if (!user) return null;
+async function getProfile(forceRefresh = false) {
+  return await getUser(forceRefresh);
+}
 
-  const { data, error } = await supabaseClient
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-    
-  if (error) {
-    console.error('Error fetching profile:', error);
-    return null;
-  }
-  return data;
+// Clear cached profile
+function clearProfileCache() {
+  cachedProfile = null;
 }
 
 // Get wallet balance
@@ -125,6 +130,11 @@ async function updateWalletBalance(newBalance) {
     
   if (error) {
     console.error('Error updating wallet:', error);
+  } else {
+    // Update local cache
+    if (cachedProfile) {
+      cachedProfile.wallet_balance = newBalance;
+    }
   }
 }
 

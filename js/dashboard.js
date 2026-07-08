@@ -9,11 +9,11 @@ document.addEventListener('DOMContentLoaded', async function() {
   // Require authentication
   if (!(await requireAuth())) return;
   
-  // Load wallet data
-  await loadWalletData();
-  
-  // Load transactions
-  await loadTransactions();
+  // Load wallet data and transactions in parallel
+  await Promise.all([
+    loadWalletData(),
+    loadTransactions()
+  ]);
   
   // Initialize modals
   initAddMoneyModal();
