@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PAYMONEY - Mobile Recharge</title>
+  <title>PAYMONEY - DTH Recharge</title>
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/dashboard.css">
   <link rel="stylesheet" href="css/recharge.css">
@@ -77,13 +77,13 @@
   
   <main class="recharge-container">
     <div class="services-subnav">
-      <a href="recharge.html" class="subnav-item active">
+      <a href="recharge.html" class="subnav-item">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/>
         </svg>
         <span>Mobile</span>
       </a>
-      <a href="dth.html" class="subnav-item">
+      <a href="dth.html" class="subnav-item active">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
           <path d="M6 13h12v2H6zm0-4h8v2H6z"/>
@@ -105,39 +105,24 @@
     </div>
     
     <div class="recharge-card">
-      <h2>Mobile Recharge</h2>
+      <h2>DTH Recharge</h2>
       
       <div class="recharge-form">
         <div class="form-group">
-          <label for="mobileNumber">Mobile Number</label>
-          <input type="tel" id="mobileNumber" maxlength="10" placeholder="Enter 10 digit mobile number" required>
-        </div>
-        
-        <div class="form-group">
-          <label for="operator">Operator</label>
-          <select id="operator" required>
+          <label for="dthOperator">DTH Operator</label>
+          <select id="dthOperator" required>
             <option value="" disabled selected>Select Operator</option>
-            <option value="jio">Jio</option>
-            <option value="airtel">Airtel</option>
-            <option value="vi">Vi</option>
-            <option value="bsnl">BSNL</option>
+            <option value="tataplay">Tata Play</option>
+            <option value="dishtv">Dish TV</option>
+            <option value="airtel">Airtel Digital TV</option>
+            <option value="sundirect">Sun Direct</option>
+            <option value="videocon">Videocon d2h</option>
           </select>
         </div>
-        
+
         <div class="form-group">
-          <label for="circle">Circle</label>
-          <select id="circle" required>
-            <option value="" disabled selected>Select Circle</option>
-            <option value="delhi">Delhi NCR</option>
-            <option value="mumbai">Mumbai</option>
-            <option value="karnataka">Karnataka</option>
-            <option value="tamilnadu">Tamil Nadu</option>
-            <option value="up">Uttar Pradesh</option>
-            <option value="maharashtra">Maharashtra & Goa</option>
-            <option value="gujarat">Gujarat</option>
-            <option value="westbengal">West Bengal</option>
-            <option value="other">Other</option>
-          </select>
+          <label for="subscriberId">Subscriber ID / Customer ID</label>
+          <input type="text" id="subscriberId" placeholder="Enter Subscriber/Customer ID" required>
         </div>
         
         <button id="viewPlansBtn" class="btn btn-secondary">View Plans</button>
@@ -146,12 +131,12 @@
     
     <div id="plansContainer" class="plans-container hidden">
       <div class="plans-header">
-        <h3>Recommended Plans</h3>
+        <h3>Recommended Packs</h3>
         <div class="plans-tabs">
           <button class="plan-tab active" data-category="popular">Popular</button>
-          <button class="plan-tab" data-category="data">Data</button>
-          <button class="plan-tab" data-category="talktime">Talktime</button>
-          <button class="plan-tab" data-category="unlimited">Unlimited</button>
+          <button class="plan-tab" data-category="monthly">Monthly Packs</button>
+          <button class="plan-tab" data-category="3month">3-Month Packs</button>
+          <button class="plan-tab" data-category="annual">Annual Packs</button>
         </div>
       </div>
       
@@ -162,24 +147,20 @@
     
     <div id="rechargeConfirmation" class="recharge-confirmation hidden">
       <div class="confirmation-header">
-        <h3>Confirm Recharge</h3>
+        <h3>Confirm DTH Payment</h3>
       </div>
       
       <div class="confirmation-details">
         <div class="detail-row">
-          <span>Mobile Number:</span>
-          <span id="confirmMobile"></span>
+          <span>Subscriber ID:</span>
+          <span id="confirmSubscriberId"></span>
         </div>
         <div class="detail-row">
           <span>Operator:</span>
           <span id="confirmOperator"></span>
         </div>
         <div class="detail-row">
-          <span>Circle:</span>
-          <span id="confirmCircle"></span>
-        </div>
-        <div class="detail-row">
-          <span>Plan:</span>
+          <span>Pack Details:</span>
           <span id="confirmPlan"></span>
         </div>
         <div class="detail-row total">
@@ -195,7 +176,7 @@
     </div>
   </main>
   
-  <!-- Recharge Success Modal -->
+  <!-- DTH Success Modal -->
   <div id="rechargeSuccessModal" class="modal">
     <div class="modal-content success-modal">
       <div class="success-icon">
@@ -203,15 +184,19 @@
           <path fill="currentColor" d="M12,0A12,12,0,1,0,24,12,12,12,0,0,0,12,0Zm6.93,8.2-6.85,9.29a1,1,0,0,1-1.43.19l-4.28-3.57a1,1,0,0,1,1.27-1.53l3.48,2.9,6.18-8.39a1,1,0,1,1,1.63,1.11Z"/>
         </svg>
       </div>
-      <h2>Recharge Successful!</h2>
+      <h2>Payment Successful!</h2>
       <div class="success-details">
-        <p>Your mobile recharge has been successfully processed.</p>
+        <p>Your DTH bill payment has been successfully processed.</p>
         <div class="detail-row">
-          <span>Mobile Number:</span>
-          <span id="successMobile"></span>
+          <span>Subscriber ID:</span>
+          <span id="successSubscriberId"></span>
         </div>
         <div class="detail-row">
-          <span>Amount:</span>
+          <span>DTH Operator:</span>
+          <span id="successOperator"></span>
+        </div>
+        <div class="detail-row">
+          <span>Amount Paid:</span>
           <span id="successAmount"></span>
         </div>
         <div class="detail-row">
@@ -233,7 +218,7 @@
   <div id="notification" class="notification"></div>
   
   <script src="js/utils.js"></script>
-  <script src="js/recharge.js"></script>
+  <script src="js/dth.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabaseClient.js"></script>
 </body>

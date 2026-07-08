@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PAYMONEY - Mobile Recharge</title>
+  <title>PAYMONEY - Electricity Bill Payment</title>
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/dashboard.css">
   <link rel="stylesheet" href="css/recharge.css">
@@ -77,7 +77,7 @@
   
   <main class="recharge-container">
     <div class="services-subnav">
-      <a href="recharge.html" class="subnav-item active">
+      <a href="recharge.html" class="subnav-item">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/>
         </svg>
@@ -90,7 +90,7 @@
         </svg>
         <span>DTH</span>
       </a>
-      <a href="electricity.html" class="subnav-item">
+      <a href="electricity.html" class="subnav-item active">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
         </svg>
@@ -105,85 +105,95 @@
     </div>
     
     <div class="recharge-card">
-      <h2>Mobile Recharge</h2>
+      <h2>Electricity Bill Payment</h2>
       
       <div class="recharge-form">
         <div class="form-group">
-          <label for="mobileNumber">Mobile Number</label>
-          <input type="tel" id="mobileNumber" maxlength="10" placeholder="Enter 10 digit mobile number" required>
-        </div>
-        
-        <div class="form-group">
-          <label for="operator">Operator</label>
-          <select id="operator" required>
-            <option value="" disabled selected>Select Operator</option>
-            <option value="jio">Jio</option>
-            <option value="airtel">Airtel</option>
-            <option value="vi">Vi</option>
-            <option value="bsnl">BSNL</option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label for="circle">Circle</label>
-          <select id="circle" required>
-            <option value="" disabled selected>Select Circle</option>
-            <option value="delhi">Delhi NCR</option>
-            <option value="mumbai">Mumbai</option>
+          <label for="electricityState">State</label>
+          <select id="electricityState" required>
+            <option value="" disabled selected>Select State</option>
+            <option value="delhi">Delhi</option>
+            <option value="maharashtra">Maharashtra</option>
             <option value="karnataka">Karnataka</option>
             <option value="tamilnadu">Tamil Nadu</option>
             <option value="up">Uttar Pradesh</option>
-            <option value="maharashtra">Maharashtra & Goa</option>
-            <option value="gujarat">Gujarat</option>
             <option value="westbengal">West Bengal</option>
-            <option value="other">Other</option>
+            <option value="gujarat">Gujarat</option>
           </select>
         </div>
+
+        <div class="form-group">
+          <label for="electricityBoard">Electricity Board</label>
+          <select id="electricityBoard" required disabled>
+            <option value="" disabled selected>Select Board</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="consumerNumber">Consumer Number</label>
+          <input type="text" id="consumerNumber" placeholder="Enter Consumer Number" required>
+        </div>
         
-        <button id="viewPlansBtn" class="btn btn-secondary">View Plans</button>
+        <button id="fetchBillBtn" class="btn btn-secondary">Fetch Bill</button>
       </div>
     </div>
     
-    <div id="plansContainer" class="plans-container hidden">
-      <div class="plans-header">
-        <h3>Recommended Plans</h3>
-        <div class="plans-tabs">
-          <button class="plan-tab active" data-category="popular">Popular</button>
-          <button class="plan-tab" data-category="data">Data</button>
-          <button class="plan-tab" data-category="talktime">Talktime</button>
-          <button class="plan-tab" data-category="unlimited">Unlimited</button>
+    <!-- Dynamic Bill Details Card -->
+    <div id="billContainer" class="bill-details-card hidden">
+      <h4>Bill Details</h4>
+      <div class="bill-details-grid">
+        <div class="bill-detail-item">
+          <span class="label">Customer Name</span>
+          <span class="value" id="billCustomerName">-</span>
+        </div>
+        <div class="bill-detail-item">
+          <span class="label">Bill Number</span>
+          <span class="value" id="billNumber">-</span>
+        </div>
+        <div class="bill-detail-item">
+          <span class="label">Bill Month</span>
+          <span class="value" id="billMonth">-</span>
+        </div>
+        <div class="bill-detail-item">
+          <span class="label">Due Date</span>
+          <span class="value" id="billDueDate">-</span>
+        </div>
+        <div class="bill-detail-item">
+          <span class="label">Consumer Number</span>
+          <span class="value" id="billConsumerNo">-</span>
+        </div>
+        <div class="bill-detail-item">
+          <span class="label">Electricity Board</span>
+          <span class="value" id="billBoardName">-</span>
         </div>
       </div>
-      
-      <div id="plansList" class="plans-list">
-        <!-- Plans will be populated here by JavaScript -->
+      <div class="detail-row total" style="margin-bottom: var(--spacing-md); border-top: 1px solid rgba(0,0,0,0.1); padding-top: var(--spacing-sm);">
+        <span style="font-weight:700;">Amount Due:</span>
+        <span id="billAmount" style="font-weight:700; color:var(--accent-color); font-size:var(--font-size-lg);">-</span>
       </div>
+      <button id="proceedToPayBtn" class="btn btn-primary" style="width:100%;">Proceed to Pay</button>
     </div>
     
     <div id="rechargeConfirmation" class="recharge-confirmation hidden">
       <div class="confirmation-header">
-        <h3>Confirm Recharge</h3>
+        <h3>Confirm Electricity Bill Payment</h3>
       </div>
       
       <div class="confirmation-details">
         <div class="detail-row">
-          <span>Mobile Number:</span>
-          <span id="confirmMobile"></span>
+          <span>Consumer Number:</span>
+          <span id="confirmConsumerNo"></span>
         </div>
         <div class="detail-row">
-          <span>Operator:</span>
-          <span id="confirmOperator"></span>
+          <span>Electricity Board:</span>
+          <span id="confirmBoard"></span>
         </div>
         <div class="detail-row">
-          <span>Circle:</span>
-          <span id="confirmCircle"></span>
-        </div>
-        <div class="detail-row">
-          <span>Plan:</span>
-          <span id="confirmPlan"></span>
+          <span>Customer Name:</span>
+          <span id="confirmCustomer"></span>
         </div>
         <div class="detail-row total">
-          <span>Amount:</span>
+          <span>Bill Amount:</span>
           <span id="confirmAmount"></span>
         </div>
       </div>
@@ -195,7 +205,7 @@
     </div>
   </main>
   
-  <!-- Recharge Success Modal -->
+  <!-- Electricity Success Modal -->
   <div id="rechargeSuccessModal" class="modal">
     <div class="modal-content success-modal">
       <div class="success-icon">
@@ -203,15 +213,23 @@
           <path fill="currentColor" d="M12,0A12,12,0,1,0,24,12,12,12,0,0,0,12,0Zm6.93,8.2-6.85,9.29a1,1,0,0,1-1.43.19l-4.28-3.57a1,1,0,0,1,1.27-1.53l3.48,2.9,6.18-8.39a1,1,0,1,1,1.63,1.11Z"/>
         </svg>
       </div>
-      <h2>Recharge Successful!</h2>
+      <h2>Payment Successful!</h2>
       <div class="success-details">
-        <p>Your mobile recharge has been successfully processed.</p>
+        <p>Your electricity bill has been successfully paid.</p>
         <div class="detail-row">
-          <span>Mobile Number:</span>
-          <span id="successMobile"></span>
+          <span>Customer Name:</span>
+          <span id="successCustomer"></span>
         </div>
         <div class="detail-row">
-          <span>Amount:</span>
+          <span>Consumer Number:</span>
+          <span id="successConsumerNo"></span>
+        </div>
+        <div class="detail-row">
+          <span>Electricity Board:</span>
+          <span id="successBoard"></span>
+        </div>
+        <div class="detail-row">
+          <span>Amount Paid:</span>
           <span id="successAmount"></span>
         </div>
         <div class="detail-row">
@@ -233,7 +251,7 @@
   <div id="notification" class="notification"></div>
   
   <script src="js/utils.js"></script>
-  <script src="js/recharge.js"></script>
+  <script src="js/electricity.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabaseClient.js"></script>
 </body>

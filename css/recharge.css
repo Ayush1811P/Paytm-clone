@@ -222,3 +222,134 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Service Sub-navigation Tabs */
+.services-subnav {
+  display: flex;
+  justify-content: space-around;
+  background: var(--bg-white);
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--spacing-lg);
+  overflow-x: auto;
+  gap: var(--spacing-sm);
+  scrollbar-width: none; /* Firefox */
+}
+
+.services-subnav::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.subnav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: var(--text-medium);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  transition: all var(--transition-fast);
+  font-weight: 500;
+  font-size: var(--font-size-sm);
+  min-width: 90px;
+  text-align: center;
+}
+
+.subnav-item svg {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 6px;
+  fill: var(--text-light);
+  transition: fill var(--transition-fast), transform var(--transition-fast);
+}
+
+.subnav-item:hover {
+  background-color: var(--bg-light);
+  color: var(--primary-color);
+}
+
+.subnav-item:hover svg {
+  fill: var(--primary-color);
+  transform: translateY(-2px);
+}
+
+.subnav-item.active {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+}
+
+.subnav-item.active svg {
+  fill: var(--primary-color);
+}
+
+/* Electricity Bill Card Styles */
+.bill-details-card {
+  background: var(--primary-light);
+  border: 1px solid var(--primary-color);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+  animation: fadeIn 0.4s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.bill-details-card h4 {
+  color: var(--secondary-color);
+  margin-bottom: var(--spacing-md);
+  border-bottom: 1px solid rgba(0, 186, 242, 0.2);
+  padding-bottom: var(--spacing-xs);
+  font-size: var(--font-size-md);
+}
+
+.bill-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.bill-detail-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.bill-detail-item .label {
+  font-size: var(--font-size-xs);
+  color: var(--text-light);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.bill-detail-item .value {
+  font-size: var(--font-size-md);
+  font-weight: 500;
+  color: var(--text-dark);
+}
+
+.bill-fetch-error {
+  background-color: var(--error-light);
+  border: 1px solid var(--error-color);
+  color: var(--error-dark);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+  font-size: var(--font-size-sm);
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 768px) {
+  .services-subnav {
+    justify-content: flex-start;
+  }
+  .bill-details-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+}
